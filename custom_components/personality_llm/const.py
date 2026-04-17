@@ -1,4 +1,4 @@
-"""Constants for the Local OpenAI LLM integration."""
+"""Constants for the Personality LLM integration."""
 
 import logging
 
@@ -6,7 +6,7 @@ from homeassistant.components import ai_task
 from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT
 from homeassistant.helpers import llm
 
-DOMAIN = "local_openai"
+DOMAIN = "personality_llm"
 LOGGER = logging.getLogger(__package__)
 
 CONF_RECOMMENDED = "recommended"

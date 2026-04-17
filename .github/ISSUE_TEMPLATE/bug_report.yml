@@ -1,5 +1,5 @@
-name: Report a bug with Local OpenAI LLM
-description: Report a bug with Local OpenAI LLM integration for Home Assistant
+name: Report a bug with Personality LLM
+description: Report a bug with Personality LLM integration for Home Assistant
 labels: [bug]
 body:
   - type: checkboxes
@@ -7,7 +7,7 @@ body:
       label: Checklist
       description: Please verify that you've followed these steps
       options:
-        - label: I have updated to the latest available Local OpenAI LLM version, [see the latest version here](https://github.com/skye-harris/hass_local_openai_llm/releases/latest).
+        - label: I have updated to the latest available Personality LLM version, [see the latest version here](https://github.com/Paul-Glavin/personality_llm/releases/latest).
           required: true
   - type: markdown
     attributes:
@@ -35,7 +35,7 @@ body:
     validations:
       required: true
     attributes:
-      label: What version of Local OpenAI LLM has the issue?
+      label: What version of Personality LLM has the issue?
   - type: input
     validations:
       required: true

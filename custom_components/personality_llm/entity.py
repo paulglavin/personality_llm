@@ -440,7 +440,7 @@ class LocalAiEntity(Entity):
             "temperature": temperature,
             "parallel_tool_calls": parallel_tool_calls,
             "extra_headers": {
-                "HTTP-Referer": "https://github.com/skye-harris/hass_local_openai_llm",
+                "HTTP-Referer": "https://github.com/Paul-Glavin/personality_llm",
                 "X-Title": "Home Assistant",
             },
         }

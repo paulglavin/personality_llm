@@ -4,7 +4,7 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from custom_components.local_openai import LOGGER
+from custom_components.personality_llm import LOGGER
 
 
 class WeaviateError(Exception):

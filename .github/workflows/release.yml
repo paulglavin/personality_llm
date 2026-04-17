@@ -26,20 +26,20 @@ jobs:
           version="${version#v}"
           yq e -P -o=json \
             -i ".version = \"${version}\"" \
-            "${{ github.workspace }}/custom_components/local_openai/manifest.json"
+            "${{ github.workspace }}/custom_components/personality_llm/manifest.json"
 
       - name: "ZIP the integration directory"
         shell: "bash"
         run: |
-          cd "${{ github.workspace }}/custom_components/local_openai"
-          zip local_openai.zip -r ./
+          cd "${{ github.workspace }}/custom_components/personality_llm"
+          zip personality_llm.zip -r ./
 
       - name: Sign release package
         uses: sigstore/gh-action-sigstore-python@v3.0.1
         with:
-          inputs: ${{ github.workspace }}/custom_components/local_openai/local_openai.zip
+          inputs: ${{ github.workspace }}/custom_components/personality_llm/personality_llm.zip
 
       - name: "Upload the ZIP file to the release"
         uses: "softprops/action-gh-release@v2.3.3"
         with:
-          files: ${{ github.workspace }}/custom_components/local_openai/local_openai.zip
+          files: ${{ github.workspace }}/custom_components/personality_llm/personality_llm.zip

@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Configure Local OpenAI Server",
+        "title": "Configure Personality LLM Server",
         "data": {
           "server_name": "Server Name",
           "base_url": "Server URL",
@@ -27,7 +27,7 @@
         }
       },
       "reconfigure": {
-        "title": "Reconfigure Local OpenAI Server",
+        "title": "Reconfigure Personality LLM Server",
         "data": {
           "server_name": "Server Name",
           "base_url": "Server URL",

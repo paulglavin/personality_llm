@@ -1,9 +1,9 @@
 add_to_weaviate:
   name: Add data to Weaviate
-  description: Add or update object data in the Weaviate database connected to a Local AI Agent.
+  description: Add or update object data in the Weaviate database connected to a Personality LLM Agent.
   target:
     entity:
-      integration: local_openai
+      integration: personality_llm
       domain: conversation
   fields:
     query:
