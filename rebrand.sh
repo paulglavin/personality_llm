@@ -25,7 +25,7 @@ OLD_NAME="Local OpenAI LLM"
 NEW_NAME="Personality LLM"
 
 # Your GitHub username (used in manifest.json codeowners + HTTP-Referer header)
-NEW_GITHUB_USER="Paul-Glavin"
+NEW_GITHUB_USER="paulglavin"
 
 # ---------------------------------------------------------------------------
 # Derived values — no need to edit below this line
@@ -78,10 +78,9 @@ fi
 # Step 2 — Python: update DOMAIN constant in const.py
 # ---------------------------------------------------------------------------
 
-log "Step 2: update DOMAIN constant and module docstring (const.py)"
+log "Step 2: update DOMAIN constant (const.py)"
 
 CONST_PY="${NEW_DIR}/const.py"
-replace_in_file "${OLD_NAME}" "${NEW_NAME}" "$CONST_PY"
 replace_in_file \
     "DOMAIN = \"${OLD_DOMAIN}\"" \
     "DOMAIN = \"${NEW_DOMAIN}\"" \
@@ -238,27 +237,21 @@ README="${ROOT_DIR}/README.md"
 
 ATTRIBUTION_MARKER="<!-- personality_llm-fork-attribution -->"
 
-# Add fork attribution banner after the h1 heading, but only once.
-# Uses head/tail rather than sed to avoid escaping issues with > characters.
+# Add fork attribution banner after the h1 heading, but only once
 if ! grep -qF "$ATTRIBUTION_MARKER" "$README"; then
-    TMPFILE=$(mktemp)
-    head -1 "$README" > "$TMPFILE"
-    printf '%s\n' \
-        "" \
-        "$ATTRIBUTION_MARKER" \
-        "> **This is a fork of [hass_local_openai_llm](${UPSTREAM_REPO}) by [@skye-harris](https://github.com/skye-harris).**" \
-        "> Upstream changes are merged periodically. For issues specific to this fork, open an issue here rather than upstream." \
-        "" >> "$TMPFILE"
-    tail -n +2 "$README" >> "$TMPFILE"
-    mv "$TMPFILE" "$README"
+    ATTRIBUTION_BLOCK="${ATTRIBUTION_MARKER}
+> **This is a fork of [hass_local_openai_llm](${UPSTREAM_REPO}) by [@skye-harris](https://github.com/skye-harris).**
+> Upstream changes are merged periodically. For issues specific to this fork, open an issue here rather than upstream.
+"
+    # Insert attribution block after the first line (the h1 heading)
+    sed -i "1 a\\
+${ATTRIBUTION_BLOCK}" "$README"
     log "  inserted fork attribution banner"
 else
     log "  fork attribution already present, skipping"
 fi
 
 # Update integration name in prose
-# NOTE: the attribution banner uses "hass_local_openai_llm" (not "${OLD_NAME}")
-# so these replacements are safe and won't corrupt the banner.
 replace_in_file "# Local OpenAI LLM"   "# ${NEW_NAME}"   "$README"
 replace_in_file "${OLD_NAME}"           "${NEW_NAME}"     "$README"
 
@@ -268,22 +261,12 @@ replace_in_file \
     "${NEW_DOMAIN}.add_to_weaviate" \
     "$README"
 
-# HACS badge link (my.home-assistant.io redirect)
+# Update upstream repo URL → new repo URL (HACS badge, manual install link, etc.)
+# Keep upstream repo in the acknowledgements section, so use a targeted replacement
+# that skips lines already containing "forked from" or "Acknowledgements"
 replace_in_file \
     "owner=skye-harris&repository=hass_local_openai_llm" \
     "owner=${NEW_GITHUB_USER}&repository=personality_llm" \
-    "$README"
-
-# HACS manual install note — "add `<url>` as a custom repository"
-replace_in_file \
-    "add \`${UPSTREAM_REPO}\` as a custom repository" \
-    "add \`${NEW_REPO}\` as a custom repository" \
-    "$README"
-
-# Manual install "latest release" download link
-replace_in_file \
-    "(${UPSTREAM_REPO}/releases/latest)" \
-    "(${NEW_REPO}/releases/latest)" \
     "$README"
 
 # Manual install copy path
