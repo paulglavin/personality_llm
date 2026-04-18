@@ -63,9 +63,15 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         # speaker_profile = await self._get_speaker_profile(speaker_id)
 
         system_prompt = options.get(CONF_PROMPT)
-        
-        # TODO(PHASE1-VALIDATION-Q2): Log system_prompt value to validate single injection point
-        # See: docs/VALIDATION_LOG.md Q2
+
+        # --- VALIDATE Q2 START ---
+        import logging as _q2_logging
+        _q2_log = _q2_logging.getLogger(__name__)
+        _q2_log.warning("[VALIDATE-Q2-PROMPT-READ] system_prompt is None: %s", system_prompt is None)
+        _q2_log.warning("[VALIDATE-Q2-PROMPT-READ] system_prompt type: %s", type(system_prompt))
+        _q2_log.warning("[VALIDATE-Q2-PROMPT-READ] system_prompt[:80]: %s", (system_prompt or "")[:80])
+        _q2_log.warning("[VALIDATE-Q2-PROMPT-PASS] extra_system_prompt is None: %s", user_input.extra_system_prompt is None)
+        # --- VALIDATE Q2 END ---
     
         # TODO(PHASE1-INJECTION): After validation, replace with per-speaker prompt
         # system_prompt = speaker_profile.prompt if speaker_profile else system_prompt
