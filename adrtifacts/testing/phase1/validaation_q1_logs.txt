@@ -1,0 +1,16 @@
+Dev tools
+2026-04-18 18:16:17.982 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-TYPE] user_input type: <class 'homeassistant.components.conversation.models.ConversationInput'>
+2026-04-18 18:16:17.982 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-DEVICE] device_id: None
+2026-04-18 18:16:17.982 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-CONVID] conversation_id: None
+2026-04-18 18:16:17.982 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-CONTEXT] context type: <class 'homeassistant.core.Context'>
+2026-04-18 18:16:17.982 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-USERID] context.user_id: 7ce4f98dd64d415ab133697253d3d432
+2026-04-18 18:16:17.982 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-INJECT-POINT] After options assignment - safe injection point confirmed
+
+
+Satellite
+2026-04-18 18:36:13.212 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-TYPE] user_input type: <class 'homeassistant.components.conversation.models.ConversationInput'>
+2026-04-18 18:36:13.212 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-DEVICE] device_id: 87ef1abc26f5b5da352e0de151a145b7
+2026-04-18 18:36:13.212 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-CONVID] conversation_id: 01KPGTM1W1SE2PYJ560FFE6GFX
+2026-04-18 18:36:13.212 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-CONTEXT] context type: <class 'homeassistant.core.Context'>
+2026-04-18 18:36:13.212 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-USERID] context.user_id: None
+2026-04-18 18:36:13.212 WARNING (MainThread) [custom_components.personality_llm.conversation] [VALIDATE-Q1-INJECT-POINT] After options assignment - safe injection point confirmed
