@@ -21,7 +21,7 @@ logger:
 Restart HA after adding. Access logs via **Settings → System → Logs** or tail directly:
 
 ```bash
-tail -f home-assistant.log | grep -E "local_openai|conversation|llm"
+ha core log --follow | grep -E "local_openai|conversation|llm"
 ```
 
 ---
@@ -299,16 +299,16 @@ Fill this in after completing all five tests.
 
 | Test | Pass/Fail | Notes |
 |---|---|---|
-| 1. Basic conversation | | |
-| 2. Tool calling (single light) | | |
-| 2b. Tool calling (parallel lights) | | |
-| 3. Invalid endpoint — entry load | | |
-| 3b. Invalid endpoint — runtime error | | |
-| 3c. Recovery after reconfigure | | |
-| 4. Latency baseline recorded | | |
-| 5. Log analysis — zero errors | | |
+| 1. Basic conversation |Pass | |
+| 2. Tool calling (single light) |Pass | |
+| 2b. Tool calling (parallel lights) |Pass | |
+| 3. Invalid endpoint — entry load |Pass | |
+| 3b. Invalid endpoint — runtime error |Pass | |
+| 3c. Recovery after reconfigure |Pass | |
+| 4. Latency baseline recorded |Pass | |
+| 5. Log analysis — zero errors |Pass | |
 
-**Backend:** _(e.g., Ollama 0.x, llama.cpp, LM Studio)_
-**Model:** _(e.g., llama3.2:3b, mistral-7b-q4)_
-**HA Version:** _(e.g., 2026.4.x)_
-**Test Date:** _(YYYY-MM-DD)_
+**Backend:** llama.cpp
+**Model:** GPTOSS-20B
+**HA Version:** 2026.4.3
+**Test Date:** 18/04/2026
