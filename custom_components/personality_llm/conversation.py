@@ -53,9 +53,27 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
+        
+        
+        # TODO(PHASE1-VALIDATION-Q1): Log user_input fields here to validate speaker identity source
+        # See: docs/VALIDATION_LOG.md Q1
+        # Expected fields: device_id, context.user_id, conversation_id
+
         """Process the user input and call the API."""
         options = self.subentry.data
+        
+        # TODO(PHASE1-INJECTION): After validation, inject speaker resolution here
+        # speaker_id = user_input.device_id or user_input.context.user_id
+        # speaker_profile = await self._get_speaker_profile(speaker_id)
+
         system_prompt = options.get(CONF_PROMPT)
+        
+        # TODO(PHASE1-VALIDATION-Q2): Log system_prompt value to validate single injection point
+        # See: docs/VALIDATION_LOG.md Q2
+    
+        # TODO(PHASE1-INJECTION): After validation, replace with per-speaker prompt
+        # system_prompt = speaker_profile.prompt if speaker_profile else system_prompt
+
         parallel_tool_calls = options.get(CONF_PARALLEL_TOOL_CALLS, True)
 
         hass_apis = [api.id for api in llm.async_get_apis(self.hass)]
@@ -77,5 +95,12 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         await self._async_handle_chat_log(
             chat_log, user_input=user_input, parallel_tool_calls=parallel_tool_calls
         )
+
+        # TODO(PHASE1-VALIDATION-Q4): Log user_input.tts_options before building result
+        # See: docs/VALIDATION_LOG.md Q4
+    
+        # TODO(PHASE1-INJECTION): After validation, inject per-speaker TTS voice
+        # if speaker_profile and speaker_profile.tts_voice:
+        #     user_input.tts_options = {**(user_input.tts_options or {}), "voice": speaker_profile.tts_voice}
 
         return conversation.async_get_result_from_chat_log(user_input, chat_log)

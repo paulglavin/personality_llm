@@ -241,6 +241,8 @@ class LocalAiEntity(Entity):
         self.entry = entry
         self.subentry = subentry
         self.model = subentry.data[CONF_MODEL]
+        # TODO(PHASE1-VALIDATION-Q3): Log self.model value at init
+        # See: docs/VALIDATION_LOG.md Q3
         self._attr_unique_id = subentry.subentry_id
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, subentry.subentry_id)},
@@ -444,6 +446,12 @@ class LocalAiEntity(Entity):
                 "X-Title": "Home Assistant",
             },
         }
+            
+            # TODO(PHASE1-VALIDATION-Q3): Log model_args to validate flow
+            # See: docs/VALIDATION_LOG.md Q3
+
+            # TODO(PHASE1-INJECTION): After validation, accept speaker_model override
+            # "model": speaker_model or self.model,
 
         tools: list[ChatCompletionFunctionToolParam] | None = None
         if chat_log.llm_api:
