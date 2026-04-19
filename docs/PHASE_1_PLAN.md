@@ -3,7 +3,7 @@
 **Goal:** Integrate speaker identification from external VoicePipeline into conversation agent flow.
 
 **Status:** 🟡 Validation phase  
-**Started:** [DATE]
+**Started:** [19/04]
 
 ---
 
@@ -13,6 +13,7 @@ Phase 1 adds speaker awareness **without breaking upstream compatibility**:
 - Accept speaker metadata via webhook
 - Route to per-speaker personality prompts
 - Route to per-speaker models
+Deferred to Phase 4
 - Route to per-speaker TTS voices
 
 **Non-goals for Phase 1:**
@@ -34,11 +35,11 @@ See:
 
 ## Validation Tasks (In Progress)
 
-- [ ] Q1: Validate speaker identity source
-- [ ] Q2: Validate system prompt injection point
-- [ ] Q3: Validate model selection flow
-- [ ] Q4: Validate TTS voice override hook
-- [ ] Q5: Confirm minimal-change pattern
+- [PASS] Q1: Validate speaker identity source
+- [PASS] Q2: Validate system prompt injection point
+- [PASS] Q3: Validate model selection flow
+- [FAIL] Q4: Validate TTS voice override hook
+- [PASS] Q5: Confirm minimal-change pattern
 
 **Blocked on:** Validation completion
 
