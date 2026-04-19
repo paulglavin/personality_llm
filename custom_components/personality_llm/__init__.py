@@ -100,6 +100,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LocalAiConfigEntry) -> b
     webhook.async_register(
         hass,
         DOMAIN,
+        "Personality LLM",
         WEBHOOK_ID,
         async_webhook_handler,
         allowed_methods=["POST"],

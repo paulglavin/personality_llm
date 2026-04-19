@@ -11,6 +11,7 @@ from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import LocalAiConfigEntry
+from .entity import LocalAiEntity
 from .const import CONF_PARALLEL_TOOL_CALLS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
