@@ -120,13 +120,14 @@ class SpeakerCache:
         cutoff = now - max_age_seconds
         
         # Lazy cleanup: remove expired entries
-        expired_count = 0
+        original_count = len(self._cache)
         self._cache = {
             ts: entry
             for ts, entry in self._cache.items()
             if ts >= cutoff
         }
         
+        expired_count = original_count - len(self._cache)
         if expired_count > 0:
             _LOGGER.debug("Cleaned up %d expired cache entries", expired_count)
         
