@@ -63,10 +63,12 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         conversation_cache = self.hass.data[DOMAIN]["conversation_cache"]
         
         cache_entry = await speaker_cache.async_get_recent()
-        
+        speaker_from_webhook = False
+
         if cache_entry:
             # Fresh speaker from VoicePipeline (this utterance)
             speaker_id = cache_entry["speaker_id"]
+            speaker_from_webhook = True
             _LOGGER.debug(
                 "Speaker from cache: %s (confidence=%.2f, conversation_id=%s)",
                 speaker_id,
@@ -74,12 +76,6 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
                 user_input.conversation_id,
             )
 
-            # chat_log.conversation_id is assigned by HA even on turn 1,
-            # whereas user_input.conversation_id is None on the first turn.
-            conv_id = user_input.conversation_id or chat_log.conversation_id
-            if conv_id:
-                await conversation_cache.async_put(conv_id, speaker_id)
-        
         # Check conversation cache (multi-turn without fresh webhook)
         elif user_input.conversation_id:
             speaker_id = await conversation_cache.async_get(user_input.conversation_id)
@@ -153,6 +149,15 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         await self._async_handle_chat_log(
             chat_log, user_input=user_input, parallel_tool_calls=parallel_tool_calls
         )
+
+        # Store speaker→conversation mapping after LLM processing: chat_log.conversation_id
+        # is None at the start of turn 1 (user_input.conversation_id is also None), but HA
+        # assigns it during chat log processing, so it's available here.
+        if speaker_from_webhook:
+            conv_id = user_input.conversation_id or chat_log.conversation_id
+            if conv_id:
+                await conversation_cache.async_put(conv_id, speaker_id)
+                _LOGGER.debug("Stored speaker %s for conversation %s", speaker_id, conv_id)
 
         # Return result
         return conversation.async_get_result_from_chat_log(user_input, chat_log)
