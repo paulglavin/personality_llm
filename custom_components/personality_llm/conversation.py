@@ -123,7 +123,25 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         options = self.subentry.data
         
         # Use per-speaker system prompt
-        system_prompt = user_config["personality"]["system_prompt"]
+        from .prompt_resolver import resolve_system_prompt
+
+        # Retrieve global options from config entry
+        opts = self.hass.config_entries.async_entries(DOMAIN)
+        entry_options = opts[0].options if opts else {}
+        house_model = entry_options.get("house_model_prompt", DEFAULT_HOUSE_MODEL_PROMPT)
+        house_personality = entry_options.get("house_personality_prompt", DEFAULT_HOUSE_PERSONALITY_PROMPT)
+
+        # Resolve per-user config (if feature is enabled)
+        user_conf = None
+        if entry_options.get("enable_per_user_personality"):
+            config_manager = self.hass.data[DOMAIN]["config_manager"]
+            user_conf = config_manager.get_user(speaker_id)
+
+        # Build final system prompt using layered resolver
+        system_prompt = resolve_system_prompt(
+            house_model, house_personality, user_conf, entry_options
+        )
+        _LOGGER.debug("Resolved prompt for %s (first 100 chars): %s...", speaker_id, system_prompt[:100])
         
         parallel_tool_calls = options.get(CONF_PARALLEL_TOOL_CALLS, True)
 
