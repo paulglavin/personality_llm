@@ -59,3 +59,39 @@ RECOMMENDED_CONVERSATION_OPTIONS = {
     CONF_LLM_HASS_API: [llm.LLM_API_ASSIST],
     CONF_PROMPT: llm.DEFAULT_INSTRUCTIONS_PROMPT,
 }
+
+# Storage
+STORAGE_VERSION = 1
+STORAGE_KEY = f"{DOMAIN}_users"
+
+# Webhook
+WEBHOOK_ID = f"{DOMAIN}_input"
+CONF_WEBHOOK_SECRET = "webhook_secret"
+
+# Default user configuration
+DEFAULT_USER_CONFIG = {
+    "display_name": "Guest",
+    "personality": {
+        "system_prompt": (
+            "You are a helpful, polite assistant. "
+            "Keep responses concise (under 3 sentences) unless asked for detail."
+        ),
+        "temperature": 0.7,
+        "max_tokens": 150,
+    },
+    "llm": {
+        "provider": "ollama",
+        "model": "gpt-oss-20b",
+        "api_url": "http://localhost:11434/v1",
+        "api_key": "",
+        "fallback_provider": "ollama",
+        "fallback_model": "gpt-oss-20b",
+    },
+    "tts": {
+        # Deferred to Phase 4, but include schema now
+        "engine": "tts.piper",
+        "voice": "en_US-ryan-medium",
+        "speed": 1.0,
+        "pitch": 0,
+    },
+}
