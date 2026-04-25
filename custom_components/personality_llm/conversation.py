@@ -1,25 +1,26 @@
 """Conversation support for Local OpenAI LLM."""
-
 import logging
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT, MATCH_ALL
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, Context
 from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import LocalAiConfigEntry
-from .entity import LocalAiEntity
+if TYPE_CHECKING:
+    from . import LocalAiConfigEntry
+
 from .const import CONF_PARALLEL_TOOL_CALLS, DOMAIN
+from .entity import LocalAiEntity
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: LocalAiConfigEntry,
+    config_entry: "LocalAiConfigEntry",  # ← String literal for forward reference
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up conversation entities."""
@@ -35,12 +36,10 @@ async def async_setup_entry(
 class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
     """Local OpenAI LLM conversation agent."""
 
-    _attr_name = None
-    _attr_supports_streaming = True
-
-    def __init__(self, entry: LocalAiConfigEntry, subentry: ConfigSubentry) -> None:
+    def __init__(self, entry: "LocalAiConfigEntry", subentry: ConfigSubentry) -> None:
         """Initialize the agent."""
         super().__init__(entry, subentry)
+
         if self.subentry.data.get(CONF_LLM_HASS_API):
             self._attr_supported_features = (
                 conversation.ConversationEntityFeature.CONTROL
@@ -58,10 +57,11 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
     ) -> conversation.ConversationResult:
         """Process the user input and call the API."""
         
-        # ========== NEW: Speaker Resolution (Phase 1) ==========
-        # Per-utterance speaker switching: cache → context → default
+        # ========== Speaker Resolution (Multi-Turn Support) ==========
         
         speaker_cache = self.hass.data[DOMAIN]["speaker_cache"]
+        conversation_cache = self.hass.data[DOMAIN]["conversation_cache"]
+        
         cache_entry = await speaker_cache.async_get_recent()
         
         if cache_entry:
@@ -73,40 +73,45 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
                 cache_entry["confidence"],
                 user_input.conversation_id,
             )
-            
-            # Detect speaker change in multi-turn
-            if user_input.context.user_id:
-                prev_speaker = self._get_speaker_from_user_id(user_input.context.user_id)
-                if prev_speaker and prev_speaker != speaker_id:
-                    _LOGGER.info(
-                        "Speaker changed in conversation %s: %s → %s",
-                        user_input.conversation_id,
-                        prev_speaker,
-                        speaker_id,
-                    )
+
+            # chat_log.conversation_id is assigned by HA even on turn 1,
+            # whereas user_input.conversation_id is None on the first turn.
+            conv_id = user_input.conversation_id or chat_log.conversation_id
+            if conv_id:
+                await conversation_cache.async_put(conv_id, speaker_id)
         
-        elif user_input.context.user_id:
-            # Restore speaker from previous turn
-            speaker_id = self._get_speaker_from_user_id(user_input.context.user_id)
-            if not speaker_id:
+        # Check conversation cache (multi-turn without fresh webhook)
+        elif user_input.conversation_id:
+            speaker_id = await conversation_cache.async_get(user_input.conversation_id)
+            if speaker_id:
+                _LOGGER.debug(
+                    "Speaker from conversation history: %s (conversation_id=%s)",
+                    speaker_id,
+                    user_input.conversation_id,
+                )
+            else:
+                _LOGGER.debug(
+                    "No speaker in conversation cache, using default (conversation_id=%s)",
+                    user_input.conversation_id,
+                )
                 speaker_id = "default"
-            _LOGGER.debug(
-                "Speaker from context (previous turn): %s (conversation_id=%s)",
-                speaker_id,
-                user_input.conversation_id,
-            )
         
+        # No conversation context available
         else:
-            # No speaker info available
             speaker_id = "default"
-            _LOGGER.debug("No speaker info, using default")
+            _LOGGER.debug("No conversation_id, using default")
         
-        # Update context for next turn
+        # Update context for HA internals (audit logs, permissions)
         user_id = await self._get_user_id_from_speaker(speaker_id)
-        # Note: context may be dataclass or dict depending on HA version
-        if hasattr(user_input.context, 'as_dict'):
-            user_input.context = user_input.context.as_dict()
-        user_input.context["user_id"] = user_id
+        user_input.context = Context(
+            user_id=user_id,
+            parent_id=user_input.context.parent_id,
+            id=user_input.context.id,
+        )
+        
+        _LOGGER.debug("Updated context.user_id: %s", user_id)
+        
+        # ========== END Speaker Resolution ==========
         
         # Load per-speaker configuration
         config_manager = self.hass.data[DOMAIN]["config_manager"]
@@ -118,44 +123,41 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
             user_config.get("display_name", "Unknown"),
         )
         
-        # ========== END Speaker Resolution ==========
-        
-        # ========== EXISTING: Read config (MODIFIED) ==========
+        # Get configuration options
         options = self.subentry.data
         
-        # NEW: Use per-speaker system prompt instead of global
+        # Use per-speaker system prompt
         system_prompt = user_config["personality"]["system_prompt"]
         
-        # EXISTING: parallel_tool_calls (unchanged)
         parallel_tool_calls = options.get(CONF_PARALLEL_TOOL_CALLS, True)
 
-        # ========== EXISTING: LLM API filtering (UNCHANGED) ==========
+        # Get available LLM APIs
         hass_apis = [api.id for api in llm.async_get_apis(self.hass)]
 
         # Filter out any tool providers that no longer exist
         llm_apis = options.get(CONF_LLM_HASS_API, [])
         llm_apis = [api for api in llm_apis if api in hass_apis]
 
-        # ========== EXISTING: Provide LLM data (UNCHANGED) ==========
+        # Provide LLM data to chat log
         try:
             await chat_log.async_provide_llm_data(
                 user_input.as_llm_context(DOMAIN),
                 llm_apis,
-                system_prompt,  # ← Now per-speaker
+                system_prompt,
                 user_input.extra_system_prompt,
             )
         except conversation.ConverseError as err:
             return err.as_conversation_result()
 
-        # ========== EXISTING: Handle chat log (UNCHANGED) ==========
+        # Handle chat log (call LLM, execute tools)
         await self._async_handle_chat_log(
             chat_log, user_input=user_input, parallel_tool_calls=parallel_tool_calls
         )
 
-        # ========== EXISTING: Return result (UNCHANGED) ==========
+        # Return result
         return conversation.async_get_result_from_chat_log(user_input, chat_log)
     
-    # ========== NEW: Helper Methods ==========
+    # ========== Helper Methods for Speaker Management ==========
     
     def _get_speaker_from_user_id(self, user_id: str) -> str | None:
         """

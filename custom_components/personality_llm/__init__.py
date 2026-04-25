@@ -1,6 +1,7 @@
 """The personality_llm integration."""
 from __future__ import annotations
 
+import importlib
 import logging
 import re
 from typing import Any
@@ -25,6 +26,9 @@ from .const import (
     LOGGER,
     WEBHOOK_ID,
 )
+from .conversation_speaker_cache import ConversationSpeakerCache
+from .speaker_cache import SpeakerCache
+from .user_config import UserConfigManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,7 +57,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: LocalAiConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: "LocalAiConfigEntry") -> bool:
     """Set up personality_llm from a config entry."""
     
     # ========== EXISTING: OpenAI client setup ==========
@@ -81,14 +85,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: LocalAiConfigEntry) -> b
     # This makes speaker_cache and config_manager available to conversation.py
     
     hass.data.setdefault(DOMAIN, {})
-    
+
     # Speaker cache (ephemeral, 2s TTL)
-    from .speaker_cache import SpeakerCache
     speaker_cache = SpeakerCache(hass)
     hass.data[DOMAIN]["speaker_cache"] = speaker_cache
-    
+
+    # Conversation-speaker mapping (30min TTL)
+    conversation_cache = ConversationSpeakerCache(hass)
+    hass.data[DOMAIN]["conversation_cache"] = conversation_cache
+
     # User config manager (persistent, per-speaker settings)
-    from .user_config import UserConfigManager
     config_manager = UserConfigManager(hass)
     await config_manager.async_load()
     hass.data[DOMAIN]["config_manager"] = config_manager
@@ -107,8 +113,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: LocalAiConfigEntry) -> b
     )
     
     _LOGGER.info("Speaker awareness initialized (webhook: %s)", WEBHOOK_ID)
-    
+
     # ========== EXISTING: Platform loading ==========
+    # Pre-import platform modules in the executor so HA's loader finds them
+    # cached in sys.modules and avoids blocking import_module calls in the loop.
+    for _platform in ("conversation", "ai_task"):
+        await hass.async_add_executor_job(
+            importlib.import_module,
+            f"custom_components.personality_llm.{_platform}",
+        )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # ========== EXISTING: Update listener ==========
@@ -118,13 +131,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: LocalAiConfigEntry) -> b
 
 
 async def _async_update_listener(
-    hass: HomeAssistant, entry: LocalAiConfigEntry
+    hass: HomeAssistant, entry: "LocalAiConfigEntry"
 ) -> None:
     """Handle update."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: LocalAiConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: "LocalAiConfigEntry") -> bool:
     """Unload personality_llm."""
     
     # NEW: Unregister webhook
@@ -268,7 +281,6 @@ async def _async_get_or_create_user_id(
     # Create shadow user
     user = await hass.auth.async_create_user(
         name=user_name,
-        system_generated=True,
     )
     
     _LOGGER.info("Created shadow user for speaker %s: %s", speaker_id, user.id)
