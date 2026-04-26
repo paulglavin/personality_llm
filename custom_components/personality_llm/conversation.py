@@ -8,11 +8,12 @@ from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT, MATCH_ALL
 from homeassistant.core import HomeAssistant, Context
 from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from .prompt_resolver import resolve_prompts
 
 if TYPE_CHECKING:
     from . import LocalAiConfigEntry
 
-from .const import CONF_PARALLEL_TOOL_CALLS, DOMAIN
+from .const import CONF_PARALLEL_TOOL_CALLS, DOMAIN, DEFAULT_HOUSE_MODEL_PROMPT, DEFAULT_HOUSE_PERSONALITY_PROMPT
 from .entity import LocalAiEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -121,25 +122,26 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         
         # Get configuration options
         options = self.subentry.data
-        
-        # Use per-speaker system prompt
-        from .prompt_resolver import resolve_system_prompt
 
         # Retrieve global options from config entry
-        opts = self.hass.config_entries.async_entries(DOMAIN)
-        entry_options = opts[0].options if opts else {}
-        house_model = entry_options.get("house_model_prompt", DEFAULT_HOUSE_MODEL_PROMPT)
+        entry_options = self.entry.options if self.entry else {}
         house_personality = entry_options.get("house_personality_prompt", DEFAULT_HOUSE_PERSONALITY_PROMPT)
+
+        # Merge integration-level model prompt with any model-specific additions from
+        # the subentry's CONF_PROMPT (tool-calling quirks, per-model format notes, etc.)
+        house_model = entry_options.get("house_model_prompt", DEFAULT_HOUSE_MODEL_PROMPT)
+        subentry_prompt = (options.get(CONF_PROMPT) or "").strip()
+        model_prompt_parts = [p for p in (house_model, subentry_prompt) if p]
+        model_prompt = "\n\n".join(model_prompt_parts)
 
         # Resolve per-user config (if feature is enabled)
         user_conf = None
         if entry_options.get("enable_per_user_personality"):
-            config_manager = self.hass.data[DOMAIN]["config_manager"]
             user_conf = config_manager.get_user(speaker_id)
 
         # Build final system prompt using layered resolver
-        system_prompt = resolve_system_prompt(
-            house_model, house_personality, user_conf, entry_options
+        system_prompt, generated_extra = resolve_prompts(
+            model_prompt, house_personality, user_conf, entry_options
         )
         _LOGGER.debug("Resolved prompt for %s (first 100 chars): %s...", speaker_id, system_prompt[:100])
         
@@ -153,12 +155,17 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         llm_apis = [api for api in llm_apis if api in hass_apis]
 
         # Provide LLM data to chat log
+        # Combine generated personality (injected after entity list) with any
+        # upstream extra_system_prompt from the voice pipeline.
+        upstream_extra = user_input.extra_system_prompt or ""
+        combined_extra = "\n\n".join(p for p in (upstream_extra, generated_extra) if p) or None
+
         try:
             await chat_log.async_provide_llm_data(
                 user_input.as_llm_context(DOMAIN),
                 llm_apis,
                 system_prompt,
-                user_input.extra_system_prompt,
+                combined_extra,
             )
         except conversation.ConverseError as err:
             return err.as_conversation_result()

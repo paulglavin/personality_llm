@@ -42,6 +42,12 @@ type LocalAiConfigEntry = ConfigEntry[AsyncOpenAI]
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up is called when Home Assistant is loading our component."""
+    # Pre-import config_flow so HA's loader finds it cached in sys.modules and
+    # avoids a blocking importlib.import_module call on the event loop.
+    await hass.async_add_executor_job(
+        importlib.import_module,
+        "custom_components.personality_llm.config_flow",
+    )
     service.async_register_platform_entity_service(
         hass=hass,
         service_domain=DOMAIN,
@@ -80,6 +86,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: "LocalAiConfigEntry") ->
 
     entry.runtime_data = client
     
+    
+    if "house_model_prompt" not in (entry.options or {}):
+        from .const import DEFAULT_HOUSE_MODEL_PROMPT, DEFAULT_HOUSE_PERSONALITY_PROMPT
+        old_prompt = entry.data.get("system_prompt", DEFAULT_HOUSE_MODEL_PROMPT)
+        hass.config_entries.async_update_entry(entry, options={
+            "house_model_prompt": old_prompt,
+            "house_personality_prompt": DEFAULT_HOUSE_PERSONALITY_PROMPT,
+            "enable_per_user_personality": False,
+            "allow_personality_override": False,
+            "allow_full_prompt_override": False,
+        })
+        _LOGGER.info("Migrated existing config to Phase 2 prompt architecture")
+
     # ========== NEW: Speaker Awareness Setup (Phase 1) ==========
     # Initialize speaker infrastructure BEFORE platforms load
     # This makes speaker_cache and config_manager available to conversation.py

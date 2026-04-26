@@ -11,6 +11,7 @@ from homeassistant.config_entries import (
     ConfigFlow,
     ConfigFlowResult,
     ConfigSubentryFlow,
+    OptionsFlow,
     SubentryFlowResult,
 )
 from homeassistant.const import CONF_API_KEY, CONF_LLM_HASS_API, CONF_MODEL, CONF_PROMPT
@@ -28,6 +29,8 @@ from homeassistant.helpers.selector import (
     SelectSelectorConfig,
     SelectSelectorMode,
     TemplateSelector,
+    TextSelector,
+    TextSelectorConfig,
 )
 from openai import AsyncOpenAI, OpenAIError
 
@@ -56,10 +59,13 @@ from .const import (
     CONF_WEAVIATE_MAX_RESULTS_MAX,
     CONF_WEAVIATE_OPTIONS,
     CONF_WEAVIATE_THRESHOLD,
+    DEFAULT_HOUSE_MODEL_PROMPT,
+    DEFAULT_HOUSE_PERSONALITY_PROMPT,
     DOMAIN,
     LOGGER,
     RECOMMENDED_CONVERSATION_OPTIONS,
 )
+from .user_config import UserConfigManager
 from .weaviate import WeaviateClient, WeaviateError
 
 
@@ -239,6 +245,12 @@ class LocalAiConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry):
+        """Return the options flow handler for this integration."""
+        return PersonalityLLMOptionsFlowHandler()
 
 class LocalAiSubentryFlowHandler(ConfigSubentryFlow):
     """Handle subentry flow for Local OpenAI LLM."""
@@ -582,4 +594,169 @@ class AITaskDataFlowHandler(LocalAiSubentryFlowHandler):
             step_id="reconfigure",
             data_schema=schema,
             errors=errors,
+        )
+    
+class PersonalityLLMOptionsFlowHandler(OptionsFlow):
+    """Handle options flow for personality_llm."""
+
+    async def _get_config_manager(self) -> UserConfigManager:
+        """Return the live config manager, or a freshly loaded fallback."""
+        if hasattr(self, "_config_manager"):
+            return self._config_manager
+        cm = self.hass.data.get(DOMAIN, {}).get("config_manager")
+        if cm is None:
+            cm = UserConfigManager(self.hass)
+            await cm.async_load()
+        self._config_manager = cm
+        return cm
+
+    async def async_step_init(self, user_input=None):
+        """Step 1: House-level defaults and capability toggles."""
+        self._selected_user = None
+        if user_input is not None:
+            if not user_input.get("enable_per_user_personality"):
+                user_input["allow_personality_override"] = False
+                user_input["allow_full_prompt_override"] = False
+            self._house_options = user_input
+            if user_input.get("enable_per_user_personality"):
+                return await self.async_step_user_select()
+            return self.async_create_entry(title="", data=user_input)
+
+        opts = {**self.config_entry.options} if self.config_entry.options else {}
+        opts.setdefault("house_model_prompt", DEFAULT_HOUSE_MODEL_PROMPT)
+        opts.setdefault("house_personality_prompt", DEFAULT_HOUSE_PERSONALITY_PROMPT)
+        opts.setdefault("enable_per_user_personality", False)
+        opts.setdefault("allow_personality_override", False)
+        opts.setdefault("allow_full_prompt_override", False)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema({
+                vol.Required(
+                    "house_model_prompt",
+                    default=opts["house_model_prompt"],
+                ): TextSelector(TextSelectorConfig(multiline=True)),
+                vol.Required(
+                    "house_personality_prompt",
+                    default=opts["house_personality_prompt"],
+                ): TextSelector(TextSelectorConfig(multiline=True)),
+                vol.Optional(
+                    "enable_per_user_personality",
+                    default=opts["enable_per_user_personality"],
+                ): bool,
+                vol.Optional(
+                    "allow_personality_override",
+                    default=opts["allow_personality_override"],
+                ): bool,
+                vol.Optional(
+                    "allow_full_prompt_override",
+                    default=opts["allow_full_prompt_override"],
+                ): bool,
+            }),
+        )
+
+    async def async_step_user_select(self, user_input=None):
+        """Step 2: Select an existing user or type a new speaker ID to configure."""
+        config_manager = await self._get_config_manager()
+        existing_users = sorted(u for u in config_manager.list_users() if u != "default")
+        errors = {}
+
+        if user_input is not None:
+            choice = (user_input.get("selected_user") or "").strip().lower()
+            if not choice:
+                return self.async_create_entry(
+                    title="", data=getattr(self, "_house_options", {})
+                )
+            if not re.match(r"^[a-z0-9_]{1,50}$", choice):
+                errors["selected_user"] = "invalid_speaker_id"
+            else:
+                self._selected_user = choice
+                return await self.async_step_user_personality()
+
+        options = [
+            SelectOptionDict(
+                value=u,
+                label=f"{u} — {config_manager.get_user(u).get('display_name', u)}",
+            )
+            for u in existing_users
+        ]
+
+        return self.async_show_form(
+            step_id="user_select",
+            data_schema=vol.Schema({
+                vol.Optional("selected_user"): SelectSelector(
+                    SelectSelectorConfig(
+                        options=options,
+                        custom_value=True,
+                        mode=SelectSelectorMode.LIST,
+                    )
+                ),
+            }),
+            errors=errors,
+            description_placeholders={"configured": str(len(existing_users))},
+        )
+
+    async def async_step_user_personality(self, user_input=None):
+        """Step 3: Configure a specific user's personality."""
+        config_manager = await self._get_config_manager()
+
+        if user_input is not None:
+            new_conf = {
+                "display_name": user_input.get("display_name", "").strip() or self._selected_user,
+                "pronouns": (user_input.get("pronouns") or "").strip(),
+                "personality_prompt": user_input.get("personality_prompt", ""),
+                "override_house_personality": user_input.get("override_house_personality", False),
+                "personality_override_prompt": user_input.get("personality_override_prompt", ""),
+                "full_prompt_override": user_input.get("full_prompt_override", ""),
+            }
+            await config_manager.async_add_user(self._selected_user, new_conf)
+            return await self.async_step_user_select()
+
+        existing = config_manager.get_user(self._selected_user) or {}
+        defaults = {
+            "display_name": existing.get("display_name", self._selected_user),
+            "pronouns": existing.get("pronouns", ""),
+            "personality_prompt": existing.get("personality_prompt", ""),
+            "override_house_personality": existing.get("override_house_personality", False),
+            "personality_override_prompt": existing.get("personality_override_prompt", ""),
+            "full_prompt_override": existing.get("full_prompt_override", ""),
+        }
+
+        # Use in-progress house options for flag checks since they aren't saved yet
+        pending_opts = getattr(self, "_house_options", self.config_entry.options or {})
+
+        schema_fields = {
+            vol.Optional("display_name", default=defaults["display_name"]): str,
+            vol.Optional("pronouns", default=defaults["pronouns"]): str,
+            vol.Optional(
+                "personality_prompt", default=defaults["personality_prompt"]
+            ): TextSelector(TextSelectorConfig(multiline=True)),
+        }
+
+        if pending_opts.get("allow_personality_override"):
+            schema_fields[
+                vol.Optional(
+                    "override_house_personality",
+                    default=defaults["override_house_personality"],
+                )
+            ] = bool
+            schema_fields[
+                vol.Optional(
+                    "personality_override_prompt",
+                    default=defaults["personality_override_prompt"],
+                )
+            ] = TextSelector(TextSelectorConfig(multiline=True))
+
+        if pending_opts.get("allow_full_prompt_override"):
+            schema_fields[
+                vol.Optional(
+                    "full_prompt_override",
+                    default=defaults["full_prompt_override"],
+                )
+            ] = TextSelector(TextSelectorConfig(multiline=True))
+
+        return self.async_show_form(
+            step_id="user_personality",
+            data_schema=vol.Schema(schema_fields),
+            description_placeholders={"user": self._selected_user},
         )
