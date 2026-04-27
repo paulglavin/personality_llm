@@ -217,20 +217,43 @@
   },
   "options": {
     "error": {
-      "invalid_speaker_id": "Speaker ID must be 1–50 characters: lowercase letters, numbers and underscores only"
+      "invalid_speaker_id": "Speaker ID must be 1–50 characters: lowercase letters, numbers and underscores only",
+      "personal_context_too_long": "Context must be 500 characters or fewer"
     },
     "step": {
       "init": {
-        "title": "Global Prompt Settings",
-        "description": "Configure house-wide default prompts and enable per-user customisations.",
+        "title": "Personality Settings",
+        "description": "Choose how your assistant behaves and sounds. Enable per-user profiles to give each person their own style.",
         "data": {
-          "house_model_prompt": "Default house model prompt (system instructions)",
-          "house_personality_prompt": "Default house personality prompt (tone and style)",
+          "assistant_name": "Assistant name",
+          "personality_style": "Personality style",
+          "humor_level": "Humor level",
+          "response_style": "Response style",
           "enable_per_user_personality": "Enable per-user personality profiles",
           "allow_personality_override": "Allow users to override house personality",
           "allow_full_prompt_override": "Allow users to fully override system prompt (advanced)"
+        },
+        "data_description": {
+          "assistant_name": "What the assistant calls itself (e.g. JARVIS, Aria, Assistant)",
+          "personality_style": "Sets the overall character. Some combinations may produce inconsistent results — for example, Sarcastic + Formal response style may conflict. Try different combinations to find what works.",
+          "humor_level": "How much humor to inject. Works alongside the personality style.",
+          "response_style": "Controls length and formality of responses."
+        },
+        "sections": {
+          "advanced_prompts": {
+            "name": "Advanced (raw prompts)",
+            "description": "Override the generated personality with custom prompt text. Changes here take priority over the structured settings above. Use these if you need precise control or are migrating an existing configuration.",
+            "data": {
+              "house_model_prompt": "Model instructions",
+              "house_personality_prompt": "House personality prompt"
+            },
+            "data_description": {
+              "house_model_prompt": "Base behaviour instructions: what the assistant can do, safety rules, tool usage. Applied before the entity list.",
+              "house_personality_prompt": "Legacy raw personality prompt. Used as a fallback when all personality dropdowns are set to Custom."
+            }
+          }
         }
-      },   
+      },
       "user_select": {
         "title": "Configure a user personality",
         "description": "Select an existing user to edit, or type a new speaker ID to create one. The speaker ID must match the identifier sent by your voice identification system (e.g. \"paul\"). It will be converted to lowercase automatically. Submit with no selection to save and close. {configured} user(s) currently configured.",
@@ -243,21 +266,42 @@
       },
       "user_personality": {
         "title": "Personal Settings for {user}",
-        "description": "Set up the personal assistant personality for {user}.",
+        "description": "Personalise how the assistant speaks to {user}.",
         "data": {
           "display_name": "Display name",
           "pronouns": "Preferred pronouns",
-          "personality_prompt": "Personal personality prompt",
-          "override_house_personality": "Replace house personality with override prompt",
-          "personality_override_prompt": "House personality override",
-          "full_prompt_override": "Full prompt override (replaces all house prompts)"
+          "personality_style": "Personality style",
+          "humor_level": "Humor level",
+          "response_style": "Response style",
+          "address_style": "How to address this person",
+          "personal_context": "About this person"
         },
         "data_description": {
           "display_name": "Friendly name shown in logs and used in prompts (e.g. Paul)",
-          "pronouns": "Optional. How this person prefers to be referred to (e.g. he/him, she/her, they/them). Leave blank to omit entirely.",
-          "personality_prompt": "Appended to the house personality. Leave blank to use house defaults only.",
-          "override_house_personality": "When enabled, the override prompt below replaces the house personality instead of appending",
-          "personality_override_prompt": "Used instead of the house personality when the override toggle is on. Fill in both fields to switch modes without re-typing."
+          "pronouns": "Optional — how this person prefers to be referred to (e.g. he/him, she/her, they/them). Leave blank to omit.",
+          "personality_style": "Override the house personality style for this person. Leave on 'Use house default' to inherit.",
+          "humor_level": "Override the humor level for this person. Leave on 'Use house default' to inherit.",
+          "response_style": "Override the response style for this person. Leave on 'Use house default' to inherit.",
+          "address_style": "Controls how the assistant opens responses to this person.",
+          "personal_context": "Short background the assistant can use when talking to this person — their role, interests, or preferences. Plain English, not prompt instructions. Maximum 500 characters."
+        },
+        "sections": {
+          "advanced_prompts": {
+            "name": "Advanced (raw prompts)",
+            "description": "Raw prompt text for power users. When set, these take priority over the structured settings above. Personality prompt is additive (appended); override prompt replaces the house personality.",
+            "data": {
+              "personality_prompt": "Additional instructions (additive)",
+              "override_house_personality": "Replace house personality with override prompt",
+              "personality_override_prompt": "House personality override",
+              "full_prompt_override": "Full prompt override (replaces all house prompts)"
+            },
+            "data_description": {
+              "personality_prompt": "Appended after the generated personality directives. Leave blank to rely on the structured settings above.",
+              "override_house_personality": "When enabled, the override prompt below replaces the generated house personality instead of appending.",
+              "personality_override_prompt": "Used instead of the generated personality when the override toggle is on.",
+              "full_prompt_override": "Replaces the entire system prompt — house and user settings are ignored."
+            }
+          }
         }
       }
     }

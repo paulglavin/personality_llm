@@ -83,17 +83,32 @@ def _resolve_structured(
 
     extra = generate_personality_prompt(entry_options, effective_user)
 
+    # Advanced per-user overrides applied on top of generated content.
+    if effective_user:
+        if (
+            entry_options.get("allow_personality_override")
+            and effective_user.get("override_house_personality")
+            and effective_user.get("personality_override_prompt")
+        ):
+            # Replace all generated personality sections; keep speaker identification.
+            speaker_header = _build_speaker_header(effective_user)
+            extra = _combine(speaker_header, effective_user["personality_override_prompt"])
+            _LOGGER.debug("Structured: user personality override applied")
+        elif (effective_user.get("personality_prompt") or "").strip():
+            # Append raw additive prompt after generated content.
+            extra = _combine(extra, effective_user["personality_prompt"])
+            _LOGGER.debug("Structured: raw personality_prompt appended")
+
     if extra:
         _LOGGER.debug(
-            "Structured personality generated (first 80 chars): %s…", extra[:80]
+            "Structured personality resolved (first 80 chars): %s…", extra[:80]
         )
         return house_model_prompt, extra
 
-    # All dropdowns are 'custom' or 'none' and no user content — fall back to
-    # including house_personality_prompt in system_prompt so responses aren't
-    # personality-free.
+    # All dropdowns are 'custom'/'none', no raw prompts set — fall back to
+    # house_personality_prompt in system_prompt so responses aren't personality-free.
     _LOGGER.debug(
-        "Structured mode active but generator returned empty; "
+        "Structured mode active but all content empty; "
         "falling back to house_personality_prompt in system_prompt"
     )
     return _combine(house_model_prompt, house_personality_prompt), ""

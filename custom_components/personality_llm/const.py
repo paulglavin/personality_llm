@@ -83,6 +83,9 @@ CONF_PERSONAL_CONTEXT = "personal_context"
 # text into a field that's framed to the model as user-supplied background.
 PERSONAL_CONTEXT_MAX_LENGTH = 500
 
+# Sentinel used in per-user style fields to mean "inherit from house settings".
+USER_STYLE_INHERIT = "inherit"
+
 # personality_style ---------------------------------------------------------
 PERSONALITY_STYLE_FRIENDLY = "friendly"
 PERSONALITY_STYLE_PROFESSIONAL = "professional"
@@ -253,6 +256,9 @@ DEFAULT_ADDRESS_STYLE = ADDRESS_STYLE_BY_NAME
 DEFAULT_USER_CONFIG = {
     "display_name": "Guest",
     "pronouns": "",
+    "personality_style": USER_STYLE_INHERIT,
+    "humor_level": USER_STYLE_INHERIT,
+    "response_style": USER_STYLE_INHERIT,
     "address_style": DEFAULT_ADDRESS_STYLE,
     "personal_context": "",
     "personality_prompt": "",

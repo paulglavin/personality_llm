@@ -12,7 +12,9 @@ from __future__ import annotations
 from .const import (
     ADDRESS_STYLE_CUSTOM,
     ADDRESS_STYLE_DIRECTIVES,
+    CONF_ASSISTANT_NAME,
     DEFAULT_ADDRESS_STYLE,
+    DEFAULT_ASSISTANT_NAME,
     DEFAULT_HUMOR_LEVEL,
     DEFAULT_PERSONALITY_STYLE,
     DEFAULT_RESPONSE_STYLE,
@@ -27,7 +29,15 @@ from .const import (
     SECTION_HEADER_HUMOR,
     SECTION_HEADER_PERSONALITY,
     SECTION_HEADER_RESPONSE_STYLE,
+    USER_STYLE_INHERIT,
 )
+
+
+def _resolve_style(user_val: str | None, house_val: str | None, default: str) -> str:
+    """Return user value when set and not 'inherit', otherwise fall back to house."""
+    if user_val and user_val != USER_STYLE_INHERIT:
+        return user_val
+    return house_val or default
 
 
 def _bullets(lines: list[str]) -> str:
@@ -63,26 +73,45 @@ def generate_personality_prompt(house_opts: dict, user_config: dict) -> str:
     """
     parts: list[str] = []
 
-    # Speaker identification — always first if a known user
+    # Re-establish assistant identity at the recency position so it lands after
+    # HA's injected "answer general knowledge questions from internal knowledge"
+    # instruction and overrides the model's default helpful-assistant behaviour.
+    assistant_name = house_opts.get(CONF_ASSISTANT_NAME, DEFAULT_ASSISTANT_NAME)
+    if assistant_name and assistant_name != DEFAULT_ASSISTANT_NAME:
+        parts.append(f"You are {assistant_name.rstrip('.')}.")
+
+    # Speaker identification
     header = _speaker_header(user_config)
     if header:
         parts.append(header)
 
-    # ── House-level sections ────────────────────────────────────────────────
+    # ── Style sections — per-user overrides house values when set ───────────
 
-    personality_style = house_opts.get("personality_style", DEFAULT_PERSONALITY_STYLE)
+    personality_style = _resolve_style(
+        user_config.get("personality_style"),
+        house_opts.get("personality_style"),
+        DEFAULT_PERSONALITY_STYLE,
+    )
     if personality_style != PERSONALITY_STYLE_CUSTOM:
         directives = PERSONALITY_STYLE_DIRECTIVES.get(personality_style, [])
         if directives:
             parts.append(_section(SECTION_HEADER_PERSONALITY, _bullets(directives)))
 
-    humor_level = house_opts.get("humor_level", DEFAULT_HUMOR_LEVEL)
+    humor_level = _resolve_style(
+        user_config.get("humor_level"),
+        house_opts.get("humor_level"),
+        DEFAULT_HUMOR_LEVEL,
+    )
     if humor_level != HUMOR_LEVEL_NONE:
         directives = HUMOR_LEVEL_DIRECTIVES.get(humor_level, [])
         if directives:
             parts.append(_section(SECTION_HEADER_HUMOR, _bullets(directives)))
 
-    response_style = house_opts.get("response_style", DEFAULT_RESPONSE_STYLE)
+    response_style = _resolve_style(
+        user_config.get("response_style"),
+        house_opts.get("response_style"),
+        DEFAULT_RESPONSE_STYLE,
+    )
     directives = RESPONSE_STYLE_DIRECTIVES.get(response_style, [])
     if directives:
         parts.append(_section(SECTION_HEADER_RESPONSE_STYLE, _bullets(directives)))
@@ -93,15 +122,10 @@ def generate_personality_prompt(house_opts: dict, user_config: dict) -> str:
     has_name = bool(name and name != "Guest")
 
     address_style = user_config.get("address_style", DEFAULT_ADDRESS_STYLE)
-    if address_style != ADDRESS_STYLE_CUSTOM:
+    if address_style != ADDRESS_STYLE_CUSTOM and has_name:
         directives = ADDRESS_STYLE_DIRECTIVES.get(address_style, [])
         if directives:
-            addr_header = (
-                SECTION_HEADER_ADDRESSING.format(name=name)
-                if has_name
-                else "## Addressing the user"
-            )
-            parts.append(_section(addr_header, _bullets(directives)))
+            parts.append(_section(SECTION_HEADER_ADDRESSING.format(name=name), _bullets(directives)))
 
     personal_context = (user_config.get("personal_context") or "").strip()
     if personal_context:

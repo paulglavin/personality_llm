@@ -35,15 +35,22 @@ from homeassistant.helpers.selector import (
 from openai import AsyncOpenAI, OpenAIError
 
 from .const import (
+    ADDRESS_STYLE_OPTIONS,
+    CONF_ADDRESS_STYLE,
     CONF_AI_TASK_SUPPORTED_ATTRIBUTES,
     CONF_AI_TASK_TOOLS_SECTION,
+    CONF_ASSISTANT_NAME,
     CONF_BASE_URL,
     CONF_CHAT_TEMPLATE_KWARGS,
     CONF_CHAT_TEMPLATE_OPTS,
     CONF_CONTENT_INJECTION_METHOD,
     CONF_CONTENT_INJECTION_METHODS,
+    CONF_HUMOR_LEVEL,
     CONF_MAX_MESSAGE_HISTORY,
     CONF_PARALLEL_TOOL_CALLS,
+    CONF_PERSONAL_CONTEXT,
+    CONF_PERSONALITY_STYLE,
+    CONF_RESPONSE_STYLE,
     CONF_SERVER_NAME,
     CONF_STRIP_EMOJIS,
     CONF_TEMPERATURE,
@@ -59,14 +66,62 @@ from .const import (
     CONF_WEAVIATE_MAX_RESULTS_MAX,
     CONF_WEAVIATE_OPTIONS,
     CONF_WEAVIATE_THRESHOLD,
+    DEFAULT_ADDRESS_STYLE,
+    DEFAULT_ASSISTANT_NAME,
+    USER_STYLE_INHERIT,
     DEFAULT_HOUSE_MODEL_PROMPT,
     DEFAULT_HOUSE_PERSONALITY_PROMPT,
+    DEFAULT_HUMOR_LEVEL,
+    DEFAULT_PERSONALITY_STYLE,
+    DEFAULT_RESPONSE_STYLE,
     DOMAIN,
+    HUMOR_LEVEL_OPTIONS,
     LOGGER,
+    PERSONAL_CONTEXT_MAX_LENGTH,
+    PERSONALITY_STYLE_OPTIONS,
     RECOMMENDED_CONVERSATION_OPTIONS,
+    RESPONSE_STYLE_OPTIONS,
 )
 from .user_config import UserConfigManager
 from .weaviate import WeaviateClient, WeaviateError
+
+
+# ---------------------------------------------------------------------------
+# Selector option lists — value keys match const.py, labels are display strings.
+# Hard-coded English labels are intentional for a custom component; i18n can be
+# layered in later via HA's selector translation mechanism if needed.
+# ---------------------------------------------------------------------------
+_PERSONALITY_STYLE_OPTIONS: list[SelectOptionDict] = [
+    SelectOptionDict(value=v, label=l)
+    for v, l in zip(
+        PERSONALITY_STYLE_OPTIONS,
+        ["Friendly", "Professional", "Witty", "Sarcastic", "Playful", "Concise", "Custom (advanced)"],
+    )
+]
+_HUMOR_LEVEL_OPTIONS: list[SelectOptionDict] = [
+    SelectOptionDict(value=v, label=l)
+    for v, l in zip(HUMOR_LEVEL_OPTIONS, ["None", "Subtle", "Moderate", "Generous"])
+]
+_RESPONSE_STYLE_OPTIONS: list[SelectOptionDict] = [
+    SelectOptionDict(value=v, label=l)
+    for v, l in zip(
+        RESPONSE_STYLE_OPTIONS,
+        ["Conversational", "Formal", "Brief", "Detailed"],
+    )
+]
+_ADDRESS_STYLE_OPTIONS: list[SelectOptionDict] = [
+    SelectOptionDict(value=v, label=l)
+    for v, l in zip(
+        ADDRESS_STYLE_OPTIONS,
+        ["Always by name", "Casually", "Formal", "Custom (advanced)"],
+    )
+]
+
+# Per-user variants — same options with "Use house default" prepended.
+_inherit = SelectOptionDict(value=USER_STYLE_INHERIT, label="Use house default")
+_USER_PERSONALITY_STYLE_OPTIONS = [_inherit, *_PERSONALITY_STYLE_OPTIONS]
+_USER_HUMOR_LEVEL_OPTIONS = [_inherit, *_HUMOR_LEVEL_OPTIONS]
+_USER_RESPONSE_STYLE_OPTIONS = [_inherit, *_RESPONSE_STYLE_OPTIONS]
 
 
 async def prepare_weaviate_class(hass: HomeAssistant, weaviate_opts: dict[str, Any]):
@@ -611,47 +666,82 @@ class PersonalityLLMOptionsFlowHandler(OptionsFlow):
         return cm
 
     async def async_step_init(self, user_input=None):
-        """Step 1: House-level defaults and capability toggles."""
+        """Step 1: House-level personality and capability toggles."""
         self._selected_user = None
         if user_input is not None:
             if not user_input.get("enable_per_user_personality"):
                 user_input["allow_personality_override"] = False
                 user_input["allow_full_prompt_override"] = False
+            # Flatten the advanced section back to the top level so the rest of
+            # the integration can read house_model_prompt / house_personality_prompt
+            # from entry.options directly (no nested dict).
+            advanced = user_input.pop("advanced_prompts", {}) or {}
+            user_input["house_model_prompt"] = advanced.get(
+                "house_model_prompt", DEFAULT_HOUSE_MODEL_PROMPT
+            )
+            user_input["house_personality_prompt"] = advanced.get(
+                "house_personality_prompt", DEFAULT_HOUSE_PERSONALITY_PROMPT
+            )
             self._house_options = user_input
             if user_input.get("enable_per_user_personality"):
                 return await self.async_step_user_select()
             return self.async_create_entry(title="", data=user_input)
 
         opts = {**self.config_entry.options} if self.config_entry.options else {}
-        opts.setdefault("house_model_prompt", DEFAULT_HOUSE_MODEL_PROMPT)
-        opts.setdefault("house_personality_prompt", DEFAULT_HOUSE_PERSONALITY_PROMPT)
-        opts.setdefault("enable_per_user_personality", False)
-        opts.setdefault("allow_personality_override", False)
-        opts.setdefault("allow_full_prompt_override", False)
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
-                vol.Required(
-                    "house_model_prompt",
-                    default=opts["house_model_prompt"],
-                ): TextSelector(TextSelectorConfig(multiline=True)),
-                vol.Required(
-                    "house_personality_prompt",
-                    default=opts["house_personality_prompt"],
-                ): TextSelector(TextSelectorConfig(multiline=True)),
+                vol.Optional(
+                    CONF_ASSISTANT_NAME,
+                    default=opts.get(CONF_ASSISTANT_NAME, DEFAULT_ASSISTANT_NAME),
+                ): str,
+                vol.Optional(
+                    CONF_PERSONALITY_STYLE,
+                    default=opts.get(CONF_PERSONALITY_STYLE, DEFAULT_PERSONALITY_STYLE),
+                ): SelectSelector(SelectSelectorConfig(
+                    mode=SelectSelectorMode.DROPDOWN,
+                    options=_PERSONALITY_STYLE_OPTIONS,
+                )),
+                vol.Optional(
+                    CONF_HUMOR_LEVEL,
+                    default=opts.get(CONF_HUMOR_LEVEL, DEFAULT_HUMOR_LEVEL),
+                ): SelectSelector(SelectSelectorConfig(
+                    mode=SelectSelectorMode.DROPDOWN,
+                    options=_HUMOR_LEVEL_OPTIONS,
+                )),
+                vol.Optional(
+                    CONF_RESPONSE_STYLE,
+                    default=opts.get(CONF_RESPONSE_STYLE, DEFAULT_RESPONSE_STYLE),
+                ): SelectSelector(SelectSelectorConfig(
+                    mode=SelectSelectorMode.DROPDOWN,
+                    options=_RESPONSE_STYLE_OPTIONS,
+                )),
                 vol.Optional(
                     "enable_per_user_personality",
-                    default=opts["enable_per_user_personality"],
+                    default=opts.get("enable_per_user_personality", False),
                 ): bool,
                 vol.Optional(
                     "allow_personality_override",
-                    default=opts["allow_personality_override"],
+                    default=opts.get("allow_personality_override", False),
                 ): bool,
                 vol.Optional(
                     "allow_full_prompt_override",
-                    default=opts["allow_full_prompt_override"],
+                    default=opts.get("allow_full_prompt_override", False),
                 ): bool,
+                vol.Optional("advanced_prompts"): section(
+                    schema=vol.Schema({
+                        vol.Required(
+                            "house_model_prompt",
+                            default=opts.get("house_model_prompt", DEFAULT_HOUSE_MODEL_PROMPT),
+                        ): TextSelector(TextSelectorConfig(multiline=True)),
+                        vol.Required(
+                            "house_personality_prompt",
+                            default=opts.get("house_personality_prompt", DEFAULT_HOUSE_PERSONALITY_PROMPT),
+                        ): TextSelector(TextSelectorConfig(multiline=True)),
+                    }),
+                    options=SectionConfig(collapsed=True),
+                ),
             }),
         )
 
@@ -699,64 +789,104 @@ class PersonalityLLMOptionsFlowHandler(OptionsFlow):
     async def async_step_user_personality(self, user_input=None):
         """Step 3: Configure a specific user's personality."""
         config_manager = await self._get_config_manager()
+        errors: dict[str, str] = {}
 
         if user_input is not None:
-            new_conf = {
-                "display_name": user_input.get("display_name", "").strip() or self._selected_user,
-                "pronouns": (user_input.get("pronouns") or "").strip(),
-                "personality_prompt": user_input.get("personality_prompt", ""),
-                "override_house_personality": user_input.get("override_house_personality", False),
-                "personality_override_prompt": user_input.get("personality_override_prompt", ""),
-                "full_prompt_override": user_input.get("full_prompt_override", ""),
-            }
-            await config_manager.async_add_user(self._selected_user, new_conf)
-            return await self.async_step_user_select()
+            personal_context = (user_input.get(CONF_PERSONAL_CONTEXT) or "").strip()
+            if len(personal_context) > PERSONAL_CONTEXT_MAX_LENGTH:
+                errors[CONF_PERSONAL_CONTEXT] = "personal_context_too_long"
+
+            if not errors:
+                advanced = user_input.pop("advanced_prompts", {}) or {}
+                new_conf = {
+                    "display_name": user_input.get("display_name", "").strip() or self._selected_user,
+                    "pronouns": (user_input.get("pronouns") or "").strip(),
+                    CONF_PERSONALITY_STYLE: user_input.get(CONF_PERSONALITY_STYLE, USER_STYLE_INHERIT),
+                    CONF_HUMOR_LEVEL: user_input.get(CONF_HUMOR_LEVEL, USER_STYLE_INHERIT),
+                    CONF_RESPONSE_STYLE: user_input.get(CONF_RESPONSE_STYLE, USER_STYLE_INHERIT),
+                    CONF_ADDRESS_STYLE: user_input.get(CONF_ADDRESS_STYLE, DEFAULT_ADDRESS_STYLE),
+                    CONF_PERSONAL_CONTEXT: personal_context,
+                    "personality_prompt": advanced.get("personality_prompt", ""),
+                    "override_house_personality": advanced.get("override_house_personality", False),
+                    "personality_override_prompt": advanced.get("personality_override_prompt", ""),
+                    "full_prompt_override": advanced.get("full_prompt_override", ""),
+                }
+                await config_manager.async_add_user(self._selected_user, new_conf)
+                return await self.async_step_user_select()
 
         existing = config_manager.get_user(self._selected_user) or {}
         defaults = {
             "display_name": existing.get("display_name", self._selected_user),
             "pronouns": existing.get("pronouns", ""),
+            CONF_PERSONALITY_STYLE: existing.get(CONF_PERSONALITY_STYLE, USER_STYLE_INHERIT),
+            CONF_HUMOR_LEVEL: existing.get(CONF_HUMOR_LEVEL, USER_STYLE_INHERIT),
+            CONF_RESPONSE_STYLE: existing.get(CONF_RESPONSE_STYLE, USER_STYLE_INHERIT),
+            CONF_ADDRESS_STYLE: existing.get(CONF_ADDRESS_STYLE, DEFAULT_ADDRESS_STYLE),
+            CONF_PERSONAL_CONTEXT: existing.get(CONF_PERSONAL_CONTEXT, ""),
             "personality_prompt": existing.get("personality_prompt", ""),
             "override_house_personality": existing.get("override_house_personality", False),
             "personality_override_prompt": existing.get("personality_override_prompt", ""),
             "full_prompt_override": existing.get("full_prompt_override", ""),
         }
 
-        # Use in-progress house options for flag checks since they aren't saved yet
+        # Use in-progress house options for capability flag checks
         pending_opts = getattr(self, "_house_options", self.config_entry.options or {})
 
-        schema_fields = {
-            vol.Optional("display_name", default=defaults["display_name"]): str,
-            vol.Optional("pronouns", default=defaults["pronouns"]): str,
+        # Build advanced section — raw prompt escape hatch for power users
+        advanced_fields: dict = {
             vol.Optional(
                 "personality_prompt", default=defaults["personality_prompt"]
             ): TextSelector(TextSelectorConfig(multiline=True)),
         }
-
         if pending_opts.get("allow_personality_override"):
-            schema_fields[
-                vol.Optional(
-                    "override_house_personality",
-                    default=defaults["override_house_personality"],
-                )
+            advanced_fields[
+                vol.Optional("override_house_personality", default=defaults["override_house_personality"])
             ] = bool
-            schema_fields[
-                vol.Optional(
-                    "personality_override_prompt",
-                    default=defaults["personality_override_prompt"],
-                )
+            advanced_fields[
+                vol.Optional("personality_override_prompt", default=defaults["personality_override_prompt"])
             ] = TextSelector(TextSelectorConfig(multiline=True))
-
         if pending_opts.get("allow_full_prompt_override"):
-            schema_fields[
-                vol.Optional(
-                    "full_prompt_override",
-                    default=defaults["full_prompt_override"],
-                )
+            advanced_fields[
+                vol.Optional("full_prompt_override", default=defaults["full_prompt_override"])
             ] = TextSelector(TextSelectorConfig(multiline=True))
 
         return self.async_show_form(
             step_id="user_personality",
-            data_schema=vol.Schema(schema_fields),
+            data_schema=vol.Schema({
+                vol.Optional("display_name", default=defaults["display_name"]): str,
+                vol.Optional("pronouns", default=defaults["pronouns"]): str,
+                vol.Optional(
+                    CONF_PERSONALITY_STYLE, default=defaults[CONF_PERSONALITY_STYLE]
+                ): SelectSelector(SelectSelectorConfig(
+                    mode=SelectSelectorMode.DROPDOWN,
+                    options=_USER_PERSONALITY_STYLE_OPTIONS,
+                )),
+                vol.Optional(
+                    CONF_HUMOR_LEVEL, default=defaults[CONF_HUMOR_LEVEL]
+                ): SelectSelector(SelectSelectorConfig(
+                    mode=SelectSelectorMode.DROPDOWN,
+                    options=_USER_HUMOR_LEVEL_OPTIONS,
+                )),
+                vol.Optional(
+                    CONF_RESPONSE_STYLE, default=defaults[CONF_RESPONSE_STYLE]
+                ): SelectSelector(SelectSelectorConfig(
+                    mode=SelectSelectorMode.DROPDOWN,
+                    options=_USER_RESPONSE_STYLE_OPTIONS,
+                )),
+                vol.Optional(
+                    CONF_ADDRESS_STYLE, default=defaults[CONF_ADDRESS_STYLE]
+                ): SelectSelector(SelectSelectorConfig(
+                    mode=SelectSelectorMode.DROPDOWN,
+                    options=_ADDRESS_STYLE_OPTIONS,
+                )),
+                vol.Optional(
+                    CONF_PERSONAL_CONTEXT, default=defaults[CONF_PERSONAL_CONTEXT]
+                ): TextSelector(TextSelectorConfig(multiline=True)),
+                vol.Optional("advanced_prompts"): section(
+                    schema=vol.Schema(advanced_fields),
+                    options=SectionConfig(collapsed=True),
+                ),
+            }),
             description_placeholders={"user": self._selected_user},
+            errors=errors,
         )
