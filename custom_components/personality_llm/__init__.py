@@ -19,15 +19,21 @@ from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.typing import ConfigType
 from openai import AsyncOpenAI, AuthenticationError, OpenAIError
 
+from homeassistant.helpers import llm
+
 from .const import (
     CONF_BASE_URL,
     CONF_WEBHOOK_SECRET,
     DOMAIN,
     LOGGER,
+    SMART_DISCOVERY_API_ID,
     WEBHOOK_ID,
 )
 from .conversation_speaker_cache import ConversationSpeakerCache
+from .discovery import SmartDiscovery
+from .index_manager import IndexManager
 from .speaker_cache import SpeakerCache
+from .tools import PersonalityLLMSmartAPI
 from .user_config import UserConfigManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,6 +124,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: "LocalAiConfigEntry") ->
     await config_manager.async_load()
     hass.data[DOMAIN]["config_manager"] = config_manager
     
+    # Smart Discovery — singleton; shared across config entry reloads
+    if "index_manager" not in hass.data[DOMAIN]:
+        index_mgr = IndexManager(hass)
+        await index_mgr.start()
+        hass.data[DOMAIN]["index_manager"] = index_mgr
+        hass.data[DOMAIN]["smart_discovery"] = SmartDiscovery(hass)
+
+    existing_api_ids = {api.id for api in llm.async_get_apis(hass)}
+    if SMART_DISCOVERY_API_ID not in existing_api_ids:
+        unregister = llm.async_register_api(hass, PersonalityLLMSmartAPI(hass))
+        hass.data[DOMAIN]["smart_api_unregister"] = unregister
+
     # Webhook for VoicePipeline (config-entry scoped, optional secret)
     webhook_secret = entry.data.get(CONF_WEBHOOK_SECRET)
     hass.data[DOMAIN]["webhook_secret"] = webhook_secret
@@ -161,7 +179,19 @@ async def async_unload_entry(hass: HomeAssistant, entry: "LocalAiConfigEntry") -
     
     # NEW: Unregister webhook
     webhook.async_unregister(hass, WEBHOOK_ID)
-    
+
+    # Smart Discovery teardown — must happen before clear()
+    domain_data = hass.data.get(DOMAIN, {})
+    index_mgr = domain_data.get("index_manager")
+    if index_mgr is not None:
+        await index_mgr.async_stop()
+    unregister = domain_data.get("smart_api_unregister")
+    if unregister is not None:
+        try:
+            unregister()
+        except Exception:
+            _LOGGER.debug("smart_api_unregister raised on unload", exc_info=True)
+
     # NEW: Clean up speaker data
     hass.data.get(DOMAIN, {}).clear()
 

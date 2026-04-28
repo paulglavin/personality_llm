@@ -8,12 +8,20 @@ from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT, MATCH_ALL
 from homeassistant.core import HomeAssistant, Context
 from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import dt as dt_util
 from .prompt_resolver import resolve_prompts
 
 if TYPE_CHECKING:
     from . import LocalAiConfigEntry
 
-from .const import CONF_PARALLEL_TOOL_CALLS, DOMAIN, DEFAULT_HOUSE_MODEL_PROMPT, DEFAULT_HOUSE_PERSONALITY_PROMPT
+from .const import (
+    CONF_ENABLE_SMART_DISCOVERY,
+    CONF_PARALLEL_TOOL_CALLS,
+    DEFAULT_ENABLE_SMART_DISCOVERY,
+    DEFAULT_HOUSE_MODEL_PROMPT,
+    DEFAULT_HOUSE_PERSONALITY_PROMPT,
+    DOMAIN,
+)
 from .entity import LocalAiEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -133,6 +141,24 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         subentry_prompt = (options.get(CONF_PROMPT) or "").strip()
         model_prompt_parts = [p for p in (house_model, subentry_prompt) if p]
         model_prompt = "\n\n".join(model_prompt_parts)
+
+        # Smart Discovery: append structural index to model_prompt.
+        # Toggle off by default; user must also select "Personality LLM Smart Discovery"
+        # in Tool Providers and uncheck "Assist" for maximum token savings.
+        if options.get(CONF_ENABLE_SMART_DISCOVERY, DEFAULT_ENABLE_SMART_DISCOVERY):
+            index_mgr = self.hass.data.get(DOMAIN, {}).get("index_manager")
+            if index_mgr is not None:
+                index_text = index_mgr.render_for_prompt(await index_mgr.get_index())
+                now = dt_util.now()
+                context_block = (
+                    "## Home Assistant context\n"
+                    f"{index_text}\n\n"
+                    f"Current time: {now.strftime('%H:%M')}  "
+                    f"Date: {now.strftime('%Y-%m-%d')}"
+                )
+                model_prompt = "\n\n".join(
+                    p for p in (model_prompt, context_block) if p
+                )
 
         # Resolve per-user config (if feature is enabled)
         user_conf = None

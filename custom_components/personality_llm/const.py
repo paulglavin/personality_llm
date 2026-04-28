@@ -19,6 +19,13 @@ CONF_PARALLEL_TOOL_CALLS = "parallel_tool_calls"
 CONF_CHAT_TEMPLATE_OPTS = "chat_template_opts"
 CONF_CHAT_TEMPLATE_KWARGS = "chat_template_kwargs"
 
+# Smart Discovery (Phase 0)
+CONF_ENABLE_SMART_DISCOVERY = "enable_smart_discovery"
+CONF_MAX_ENTITIES_PER_DISCOVERY = "max_entities_per_discovery"
+DEFAULT_ENABLE_SMART_DISCOVERY = False
+DEFAULT_MAX_ENTITIES_PER_DISCOVERY = 50
+SMART_DISCOVERY_API_ID = "personality_llm_smart_discovery"
+
 CONF_AI_TASK_SUPPORTED_ATTRIBUTES = "supported_attributes"
 CONF_AI_TASK_SUPPORTED_ATTRIBUTE_OPTIONS = {
     "generate_data": ai_task.AITaskEntityFeature.GENERATE_DATA

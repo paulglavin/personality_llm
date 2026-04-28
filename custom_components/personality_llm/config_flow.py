@@ -45,6 +45,8 @@ from .const import (
     CONF_CHAT_TEMPLATE_OPTS,
     CONF_CONTENT_INJECTION_METHOD,
     CONF_CONTENT_INJECTION_METHODS,
+    CONF_ENABLE_SMART_DISCOVERY,
+    DEFAULT_ENABLE_SMART_DISCOVERY,
     CONF_HUMOR_LEVEL,
     CONF_MAX_MESSAGE_HISTORY,
     CONF_PARALLEL_TOOL_CALLS,
@@ -367,6 +369,10 @@ class ConversationFlowHandler(LocalAiSubentryFlowHandler):
             vol.Required(
                 CONF_PARALLEL_TOOL_CALLS,
                 default=True,
+            ): bool,
+            vol.Required(
+                CONF_ENABLE_SMART_DISCOVERY,
+                default=DEFAULT_ENABLE_SMART_DISCOVERY,
             ): bool,
             vol.Required(
                 CONF_STRIP_EMOJIS,
