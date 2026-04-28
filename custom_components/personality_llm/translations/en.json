@@ -76,7 +76,8 @@
             "max_message_history": "Max message history size (0 for no limit)",
             "parallel_tool_calls": "Parallel tool calling",
             "content_injection_method": "Date/Time context injection role",
-            "enable_smart_discovery": "Enable smart entity discovery (token-saving)"
+            "enable_smart_discovery": "Enable smart entity discovery (token-saving)",
+            "music_script": "Music Assistant script"
           },
           "data_description": {
             "model": "The model to use for the conversation agent",
@@ -84,7 +85,8 @@
             "parallel_tool_calls": "Allow the model to use multiple tools in a single turn",
             "temperature": "Lower for more predictable responses, higher for more randomness",
             "content_injection_method": "The message role to insert dynamic content as. See the readme for details",
-            "enable_smart_discovery": "Replace the per-turn entity dump with a structural index plus on-demand discovery tools. Drops typical system-prompt size from ~8k to ~1.5k tokens at 90 entities. Requires selecting 'Personality LLM Smart Discovery' in Tool Providers (and unchecking the default Assist API for max savings)."
+            "enable_smart_discovery": "Replace the per-turn entity dump with a structural index plus on-demand discovery tools. Drops typical system-prompt size from ~8k to ~1.5k tokens at 90 entities. Requires selecting 'Personality LLM Smart Discovery' in Tool Providers (and unchecking the default Assist API for max savings).",
+            "music_script": "The Music Assistant LLM voice script to call for music playback requests. Adds a typed play_music tool so the model never needs to guess parameters."
           },
           "sections": {
             "chat_template_opts": {
@@ -120,7 +122,8 @@
             "max_message_history": "Max message history size (0 for no limit)",
             "parallel_tool_calls": "Parallel tool calling",
             "content_injection_method": "Date/Time context injection role",
-            "enable_smart_discovery": "Enable smart entity discovery (token-saving)"
+            "enable_smart_discovery": "Enable smart entity discovery (token-saving)",
+            "music_script": "Music Assistant script"
           },
           "data_description": {
             "model": "The model to use for the conversation agent",
@@ -128,7 +131,8 @@
             "parallel_tool_calls": "Allow the model to use multiple tools in a single turn",
             "temperature": "Lower for more predictable responses, higher for more randomness",
             "content_injection_method": "The message role to insert dynamic content as. See the readme for details",
-            "enable_smart_discovery": "Replace the per-turn entity dump with a structural index plus on-demand discovery tools. Drops typical system-prompt size from ~8k to ~1.5k tokens at 90 entities. Requires selecting 'Personality LLM Smart Discovery' in Tool Providers (and unchecking the default Assist API for max savings)."
+            "enable_smart_discovery": "Replace the per-turn entity dump with a structural index plus on-demand discovery tools. Drops typical system-prompt size from ~8k to ~1.5k tokens at 90 entities. Requires selecting 'Personality LLM Smart Discovery' in Tool Providers (and unchecking the default Assist API for max savings).",
+            "music_script": "The Music Assistant LLM voice script to call for music playback requests. Adds a typed play_music tool so the model never needs to guess parameters."
           },
           "sections": {
             "chat_template_opts": {

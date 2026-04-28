@@ -186,6 +186,8 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         upstream_extra = user_input.extra_system_prompt or ""
         combined_extra = "\n\n".join(p for p in (upstream_extra, generated_extra) if p) or None
 
+        _LOGGER.warning("PROMPT TOKENS ~%d", (len(system_prompt) + len(combined_extra or "")) // 4)
+
         try:
             await chat_log.async_provide_llm_data(
                 user_input.as_llm_context(DOMAIN),

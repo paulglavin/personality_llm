@@ -18,7 +18,7 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 
-from .const import DOMAIN, SMART_DISCOVERY_API_ID
+from .const import CONF_MUSIC_SCRIPT, DOMAIN, SMART_DISCOVERY_API_ID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -168,6 +168,64 @@ class PerformActionTool(llm.Tool):
         return {"success": True, "domain": domain, "action": action, "target": target}
 
 
+class PlayMusicTool(llm.Tool):
+    """Call the Music Assistant voice script with typed parameters."""
+
+    name = "play_music"
+    description = (
+        "Play music via Music Assistant. Use for any music playback request. "
+        "Extract all details from the user's request and call immediately — "
+        "do NOT ask for clarification unless the request is genuinely ambiguous."
+    )
+    parameters = vol.Schema({
+        vol.Required("media_type"): vol.In(["track", "album", "artist", "playlist", "radio"]),
+        vol.Required("media_id"): str,
+        vol.Required("media_description"): str,
+        vol.Optional("artist", default=""): str,
+        vol.Optional("album", default=""): str,
+        vol.Optional("shuffle", default=False): bool,
+        vol.Optional("area"): str,
+        vol.Optional("media_player"): str,
+    })
+
+    def __init__(self, script_entity_id: str) -> None:
+        self._script_entity_id = script_entity_id
+
+    async def async_call(
+        self,
+        hass: HomeAssistant,
+        tool_input: llm.ToolInput,
+        llm_context: llm.LLMContext,
+    ) -> dict[str, Any]:
+        args = tool_input.tool_args
+        variables: dict[str, Any] = {
+            "media_type": args["media_type"],
+            "media_id": args["media_id"],
+            "artist": args.get("artist", ""),
+            "album": args.get("album", ""),
+            "media_description": args["media_description"],
+            "shuffle": args.get("shuffle", False),
+        }
+        if "area" in args:
+            variables["area"] = args["area"]
+        if "media_player" in args:
+            variables["media_player"] = args["media_player"]
+
+        try:
+            await hass.services.async_call(
+                "script",
+                "turn_on",
+                {"entity_id": self._script_entity_id, "variables": variables},
+                blocking=False,
+                context=llm_context.context,
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("play_music failed: %s", err)
+            return {"success": False, "error": str(err)}
+
+        return {"success": True, "playing": args["media_description"]}
+
+
 class PersonalityLLMSmartAPI(llm.API):
     """Custom LLM API exposing smart discovery + action tools."""
 
@@ -178,16 +236,40 @@ class PersonalityLLMSmartAPI(llm.API):
             name="Personality LLM Smart Discovery",
         )
 
+    def _get_music_script(self, llm_context: llm.LLMContext) -> str | None:
+        """Return the music script entity_id configured for the requesting subentry."""
+        if not llm_context.assistant:
+            return None
+        from homeassistant.helpers import entity_registry as er
+        registry = er.async_get(self.hass)
+        entity_entry = registry.async_get(llm_context.assistant)
+        if entity_entry is None or entity_entry.config_subentry_id is None:
+            return None
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            subentry = entry.subentries.get(entity_entry.config_subentry_id)
+            if subentry is not None:
+                return subentry.data.get(CONF_MUSIC_SCRIPT) or None
+        return None
+
     async def async_get_api_instance(
         self, llm_context: llm.LLMContext,
     ) -> llm.APIInstance:
+        tools: list[llm.Tool] = [
+            DiscoverEntitiesTool(),
+            GetEntityDetailsTool(),
+            PerformActionTool(),
+        ]
+        api_prompt = SMART_API_PROMPT
+        music_script = self._get_music_script(llm_context)
+        if music_script:
+            tools.append(PlayMusicTool(music_script))
+            api_prompt += (
+                "\n\nFor music requests, use the play_music tool directly — "
+                "no entity discovery needed."
+            )
         return llm.APIInstance(
             api=self,
-            api_prompt=SMART_API_PROMPT,
+            api_prompt=api_prompt,
             llm_context=llm_context,
-            tools=[
-                DiscoverEntitiesTool(),
-                GetEntityDetailsTool(),
-                PerformActionTool(),
-            ],
+            tools=tools,
         )

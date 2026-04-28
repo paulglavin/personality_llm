@@ -20,6 +20,8 @@ from homeassistant.data_entry_flow import SectionConfig, section
 from homeassistant.helpers import llm
 from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -46,6 +48,7 @@ from .const import (
     CONF_CONTENT_INJECTION_METHOD,
     CONF_CONTENT_INJECTION_METHODS,
     CONF_ENABLE_SMART_DISCOVERY,
+    CONF_MUSIC_SCRIPT,
     DEFAULT_ENABLE_SMART_DISCOVERY,
     CONF_HUMOR_LEVEL,
     CONF_MAX_MESSAGE_HISTORY,
@@ -374,6 +377,9 @@ class ConversationFlowHandler(LocalAiSubentryFlowHandler):
                 CONF_ENABLE_SMART_DISCOVERY,
                 default=DEFAULT_ENABLE_SMART_DISCOVERY,
             ): bool,
+            vol.Optional(
+                CONF_MUSIC_SCRIPT,
+            ): EntitySelector(EntitySelectorConfig(domain="script")),
             vol.Required(
                 CONF_STRIP_EMOJIS,
                 default=False,
