@@ -160,8 +160,8 @@ def generate_personality_prompt(house_opts: dict, user_config: dict) -> str:
     }
     voice = voice_map.get(personality_style, "")
     priority_items = [
-        "Base responses on actual tool results (never contradict them)",
-        f"Respond in {assistant_name} voice ({voice})" if voice else f"Respond in {assistant_name} voice",
+        'After calling tools, check each entity\'s "state" field. If state="off" say it\'s off; if state="on" say it\'s on. Never contradict tool results.',
+        f"Apply {assistant_name} voice ({voice}) to factual information" if voice else f"Apply {assistant_name} voice to factual information",
         "Use tools for device/state queries",
         "Format for speech (spelled numbers, no symbols)",
     ]
