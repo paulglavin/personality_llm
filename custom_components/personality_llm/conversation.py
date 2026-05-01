@@ -15,12 +15,14 @@ if TYPE_CHECKING:
     from . import LocalAiConfigEntry
 
 from .const import (
+    CONF_ASSISTANT_NAME,
     CONF_ENABLE_SMART_DISCOVERY,
     CONF_PARALLEL_TOOL_CALLS,
+    DEFAULT_ASSISTANT_NAME,
     DEFAULT_ENABLE_SMART_DISCOVERY,
-    DEFAULT_HOUSE_MODEL_PROMPT,
     DEFAULT_HOUSE_PERSONALITY_PROMPT,
     DOMAIN,
+    HOUSE_BASE_PERSONALITY_TEMPLATE,
 )
 from .entity import LocalAiEntity
 
@@ -135,30 +137,28 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         entry_options = self.entry.options if self.entry else {}
         house_personality = entry_options.get("house_personality_prompt", DEFAULT_HOUSE_PERSONALITY_PROMPT)
 
-        # Merge integration-level model prompt with any model-specific additions from
-        # the subentry's CONF_PROMPT (tool-calling quirks, per-model format notes, etc.)
-        house_model = entry_options.get("house_model_prompt", DEFAULT_HOUSE_MODEL_PROMPT)
-        subentry_prompt = (options.get(CONF_PROMPT) or "").strip()
-        model_prompt_parts = [p for p in (house_model, subentry_prompt) if p]
-        model_prompt = "\n\n".join(model_prompt_parts)
+        # Build model prompt from template (or user-supplied override).
+        # {assistant_name}, {home_context_summary}, {time}, {date} are resolved here.
+        assistant_name = entry_options.get(CONF_ASSISTANT_NAME, DEFAULT_ASSISTANT_NAME)
+        now = dt_util.now()
 
-        # Smart Discovery: append structural index to model_prompt.
-        # Toggle off by default; user must also select "Personality LLM Smart Discovery"
-        # in Tool Providers and uncheck "Assist" for maximum token savings.
+        home_context_summary = ""
         if options.get(CONF_ENABLE_SMART_DISCOVERY, DEFAULT_ENABLE_SMART_DISCOVERY):
             index_mgr = self.hass.data.get(DOMAIN, {}).get("index_manager")
             if index_mgr is not None:
-                index_text = index_mgr.render_for_prompt(await index_mgr.get_index())
-                now = dt_util.now()
-                context_block = (
-                    "## Home Assistant context\n"
-                    f"{index_text}\n\n"
-                    f"Current time: {now.strftime('%H:%M')}  "
-                    f"Date: {now.strftime('%Y-%m-%d')}"
-                )
-                model_prompt = "\n\n".join(
-                    p for p in (model_prompt, context_block) if p
-                )
+                home_context_summary = index_mgr.render_for_prompt(await index_mgr.get_index())
+
+        house_model_raw = entry_options.get("house_model_prompt", "") or HOUSE_BASE_PERSONALITY_TEMPLATE
+        house_model = (
+            house_model_raw
+            .replace("{assistant_name}", assistant_name)
+            .replace("{home_context_summary}", home_context_summary)
+            .replace("{time}", now.strftime("%H:%M"))
+            .replace("{date}", now.strftime("%Y-%m-%d"))
+        )
+        subentry_prompt = (options.get(CONF_PROMPT) or "").strip()
+        model_prompt_parts = [p for p in (house_model, subentry_prompt) if p]
+        model_prompt = "\n\n".join(model_prompt_parts)
 
         # Resolve per-user config (if feature is enabled)
         user_conf = None
