@@ -8,7 +8,9 @@ from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT, MATCH_ALL
 from homeassistant.core import HomeAssistant, Context
 from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.util import dt as dt_util
+from openai import AsyncOpenAI, OpenAIError
 from .prompt_resolver import resolve_prompts
 
 if TYPE_CHECKING:
@@ -18,6 +20,11 @@ from .const import (
     CONF_ASSISTANT_NAME,
     CONF_ENABLE_SMART_DISCOVERY,
     CONF_PARALLEL_TOOL_CALLS,
+    CONF_REPHRASE_API_KEY,
+    CONF_REPHRASE_BASE_URL,
+    CONF_REPHRASE_ENABLED,
+    CONF_REPHRASE_MODEL,
+    CONF_REPHRASE_SETTINGS,
     DEFAULT_ASSISTANT_NAME,
     DEFAULT_ENABLE_SMART_DISCOVERY,
     DEFAULT_HOUSE_PERSONALITY_PROMPT,
@@ -27,6 +34,60 @@ from .const import (
 from .entity import LocalAiEntity
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def _async_rephrase_response(
+    hass: HomeAssistant,
+    entry,
+    original: str,
+    personality_prompt: str,
+    rephrase_opts: dict,
+) -> str | None:
+    """Call the rephrase model to restate a response in the configured personality.
+
+    Returns the rephrased text, or None on failure (caller keeps original).
+    """
+    rephrase_model = (rephrase_opts.get(CONF_REPHRASE_MODEL) or "").strip()
+    if not rephrase_model:
+        _LOGGER.warning("Rephrase enabled but rephrase_model is not set — skipping")
+        return None
+
+    rephrase_base_url = (rephrase_opts.get(CONF_REPHRASE_BASE_URL) or "").strip()
+    rephrase_api_key = (rephrase_opts.get(CONF_REPHRASE_API_KEY) or "").strip()
+
+    if rephrase_base_url:
+        client = AsyncOpenAI(
+            base_url=rephrase_base_url,
+            api_key=rephrase_api_key or "not-needed",
+            http_client=get_async_client(hass),
+        )
+    else:
+        client = entry.runtime_data
+
+    try:
+        response = await client.chat.completions.create(
+            model=rephrase_model,
+            messages=[
+                {"role": "system", "content": personality_prompt},
+                {
+                    "role": "user",
+                    "content": (
+                        "Rephrase the following response in your assigned voice and personality. "
+                        "Keep all facts, device states, and specific information exactly as stated. "
+                        "Format for speech: spell out numbers, no markdown or symbols. "
+                        "Output only the rephrased text, nothing else.\n\n"
+                        f"{original}"
+                    ),
+                },
+            ],
+            temperature=0.7,
+            stream=False,
+        )
+        rephrased = (response.choices[0].message.content or "").strip()
+        return rephrased if rephrased else None
+    except OpenAIError as err:
+        _LOGGER.warning("Rephrase call failed (%s) — keeping original response", err)
+        return None
 
 
 async def async_setup_entry(
@@ -202,6 +263,25 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         await self._async_handle_chat_log(
             chat_log, user_input=user_input, parallel_tool_calls=parallel_tool_calls
         )
+
+        # Rephrase final response through personality model (if enabled)
+        rephrase_opts = (options.get(CONF_REPHRASE_SETTINGS) or {})
+        if rephrase_opts.get(CONF_REPHRASE_ENABLED):
+            last = chat_log.content[-1]
+            if isinstance(last, conversation.AssistantContent) and last.content:
+                rephrased = await _async_rephrase_response(
+                    hass=self.hass,
+                    entry=self.entry,
+                    original=last.content,
+                    personality_prompt=generated_extra or f"You are {assistant_name}. {house_personality}",
+                    rephrase_opts=rephrase_opts,
+                )
+                if rephrased:
+                    chat_log.content[-1] = conversation.AssistantContent(
+                        agent_id=last.agent_id,
+                        content=rephrased,
+                    )
+                    _LOGGER.debug("Response rephrased via %s", rephrase_opts.get(CONF_REPHRASE_MODEL))
 
         # Store speaker→conversation mapping after LLM processing: chat_log.conversation_id
         # is None at the start of turn 1 (user_input.conversation_id is also None), but HA

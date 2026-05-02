@@ -325,11 +325,15 @@ async def _async_get_or_create_user_id(
     # Check if user already exists
     for user in await hass.auth.async_get_users():
         if user.name == user_name:
+            if not user.groups:
+                await hass.auth.async_update_user(user, group_ids=["system-users"])
+                _LOGGER.info("Backfilled system-users group for shadow user: %s", user_name)
             return user.id
-    
+
     # Create shadow user
     user = await hass.auth.async_create_user(
         name=user_name,
+        group_ids=["system-users"],
     )
     
     _LOGGER.info("Created shadow user for speaker %s: %s", speaker_id, user.id)

@@ -163,10 +163,14 @@ async def _convert_content_to_chat_message(
             )
             return str(value)
 
+        result = content.tool_result
+        if isinstance(result, dict):
+            result = {k: v for k, v in result.items() if k != "instruction"}
+
         return ChatCompletionToolMessageParam(
             role="tool",
             tool_call_id=content.tool_call_id,
-            content=json.dumps(content.tool_result, default=log_and_str),
+            content=json.dumps(result, default=log_and_str),
         )
 
     role: Literal["user", "assistant", "system"] = content.role
@@ -623,6 +627,17 @@ class LocalAiEntity(Entity):
 
             if not chat_log.unresponded_tool_results:
                 break
+
+            # --- PERSONA REMINDER START ---
+            from .const import CONF_ASSISTANT_NAME, DEFAULT_ASSISTANT_NAME
+            assistant_name = (self.entry.options or {}).get(CONF_ASSISTANT_NAME, DEFAULT_ASSISTANT_NAME)
+            model_args["messages"].append(
+                ChatCompletionSystemMessageParam(
+                    role="system",
+                    content=f"[Reminder: You are {assistant_name}. Deliver the tool results in your assigned voice and personality.]",
+                )
+            )
+            # --- PERSONA REMINDER END ---
 
     @staticmethod
     def _trim_history(messages: list, max_messages: int) -> list:

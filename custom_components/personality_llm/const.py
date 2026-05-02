@@ -379,6 +379,13 @@ DEFAULT_USER_CONFIG = {
     },
 }
 
+# Response rephrasing — route final response through a heavier personality model
+CONF_REPHRASE_SETTINGS = "rephrase_settings"
+CONF_REPHRASE_ENABLED = "rephrase_enabled"
+CONF_REPHRASE_MODEL = "rephrase_model"
+CONF_REPHRASE_BASE_URL = "rephrase_base_url"
+CONF_REPHRASE_API_KEY = "rephrase_api_key"
+
 # Default house prompts (seeded on first install)
 DEFAULT_HOUSE_MODEL_PROMPT = (
     "You are a helpful home assistant. You have access to smart home devices "
@@ -418,6 +425,7 @@ After calling discover_entities or get_entity_details:
 2. If state="off", say the device is off. If state="on", say it is on.
 3. Your response must match these actual states—never contradict them
 4. Apply personality only to factually accurate information
+5. Deliver that accurate information in your assigned voice — tool results are data, your personality is how you present them
 
 Example:
 Tool returns: [{{"entity_id": "light.desk", "state": "off"}}, {{"entity_id": "light.key", "state": "off"}}]

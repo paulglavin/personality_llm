@@ -84,6 +84,11 @@ from .const import (
     LOGGER,
     PERSONAL_CONTEXT_MAX_LENGTH,
     PERSONALITY_STYLE_OPTIONS,
+    CONF_REPHRASE_API_KEY,
+    CONF_REPHRASE_BASE_URL,
+    CONF_REPHRASE_ENABLED,
+    CONF_REPHRASE_MODEL,
+    CONF_REPHRASE_SETTINGS,
     RECOMMENDED_CONVERSATION_OPTIONS,
     RESPONSE_STYLE_OPTIONS,
 )
@@ -436,6 +441,22 @@ class ConversationFlowHandler(LocalAiSubentryFlowHandler):
                 ),
             ),
         }
+
+        schema[vol.Optional(CONF_REPHRASE_SETTINGS)] = section(
+            options=SectionConfig(collapsed=True),
+            schema=vol.Schema({
+                vol.Required(CONF_REPHRASE_ENABLED, default=False): bool,
+                vol.Optional(CONF_REPHRASE_MODEL, default=""): TextSelector(
+                    TextSelectorConfig(multiline=False)
+                ),
+                vol.Optional(CONF_REPHRASE_BASE_URL, default=""): TextSelector(
+                    TextSelectorConfig(multiline=False)
+                ),
+                vol.Optional(CONF_REPHRASE_API_KEY, default=""): TextSelector(
+                    TextSelectorConfig(multiline=False)
+                ),
+            }),
+        )
 
         if entry.data.get(CONF_WEAVIATE_OPTIONS, {}).get(CONF_WEAVIATE_HOST):
             schema = {

@@ -152,6 +152,14 @@ def generate_personality_prompt(house_opts: dict, user_config: dict) -> str:
         if good_bad:
             parts.append(good_bad)
 
+        post_tool_reminder = (
+            "# After tool calls\n"
+            "Tool results are just data. Your personality is how you deliver them.\n"
+            'BAD: "Turned off the lights in the front room, {name}."\n'
+            'GOOD: "Front room lights out, {name}. {partner_name} will never know you left them on."'
+        )
+        parts.append(_format_example(post_tool_reminder, user_config, house_opts))
+
     voice_map = {
         PERSONALITY_STYLE_SARCASTIC: "dry, ironic",
         PERSONALITY_STYLE_WITTY: "clever, observant",
@@ -160,8 +168,8 @@ def generate_personality_prompt(house_opts: dict, user_config: dict) -> str:
     }
     voice = voice_map.get(personality_style, "")
     priority_items = [
-        'After calling tools, check each entity\'s "state" field. If state="off" say it\'s off; if state="on" say it\'s on. Never contradict tool results.',
-        f"Apply {assistant_name} voice ({voice}) to factual information" if voice else f"Apply {assistant_name} voice to factual information",
+        f"ALWAYS respond in {assistant_name} voice ({voice}) — never revert to a generic assistant tone, especially after tool calls" if voice else f"ALWAYS respond in {assistant_name} voice — never revert to a generic assistant tone",
+        'Base responses on actual tool results — check each entity\'s "state" field. If state="off" say it\'s off; if state="on" say it\'s on. Never contradict tool results.',
         "Use tools for device/state queries",
         "Format for speech (spelled numbers, no symbols)",
     ]
