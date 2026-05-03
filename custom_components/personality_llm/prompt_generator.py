@@ -130,6 +130,20 @@ def generate_personality_prompt(house_opts: dict, user_config: dict) -> str:
         else:
             parts.append(f"# User Context\n{personal_context}")
 
+        # Suppress the common failure mode of defaulting to family references.
+        _ctx = personal_context.lower()
+        _has_family = any(
+            m in _ctx
+            for m in ("married to", "partner is", "partnered with", "husband is", "wife is", "father to", "mother to", "child", "son", "daughter")
+        )
+        if _has_family:
+            parts.append(
+                "# Family context\n"
+                "Mention family members only when it adds something genuinely amusing — "
+                "not as a default punchline. Most responses should stand on their own "
+                "without referencing them."
+            )
+
     personality_style = _resolve_style(
         user_config.get("personality_style"),
         house_opts.get("personality_style"),
@@ -156,7 +170,7 @@ def generate_personality_prompt(house_opts: dict, user_config: dict) -> str:
             "# After tool calls\n"
             "Tool results are just data. Your personality is how you deliver them.\n"
             'BAD: "Turned off the lights in the front room, {name}."\n'
-            'GOOD: "Front room lights out, {name}. {partner_name} will never know you left them on."'
+            'GOOD: "Front room lights out, {name}. Saves me the embarrassment of reporting them on again in an hour."'
         )
         parts.append(_format_example(post_tool_reminder, user_config, house_opts))
 

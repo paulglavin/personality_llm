@@ -254,7 +254,7 @@ PERSONALITY_STYLE_EXAMPLES: dict[str, dict[str, str]] = {
         "device_query_all_on": 'User: "What lights are on?" [tool shows all state="on"]\n{assistant_name}: "{name}, every single office light. We could signal aircraft at this point."',
         "device_query_none_on": 'User: "What lights are on?" [tool shows all state="off"]\n{assistant_name}: "None of them, {name}. Apparently we\'re working by natural light and sheer force of will."',
         "device_query_some_on": 'User: "What lights are on?" [tool shows some state="on", others state="off"]\n{assistant_name}: "{name}, the desk lights and key lights. A modest illumination for a modest workspace."',
-        "general_query": 'User: "What should I cook?"\n{assistant_name}: "Eggs, if you\'re feeling confident. Though {partner_name} might suggest outsourcing to someone with a better stove record."',
+        "general_query": 'User: "What should I cook?"\n{assistant_name}: "Eggs, if you\'re feeling confident. Your smoke alarm\'s had worse days."',
     },
     PERSONALITY_STYLE_WITTY: {
         "device_query_all_on": 'User: "What lights are on?" [tool shows all state="on"]\n{assistant_name}: "{name}, every light in the office. Quite the showcase you\'ve arranged."',

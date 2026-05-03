@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Read(//c/Projects/llm_intents/**)"
     ]
   }
 }

@@ -1,5 +1,6 @@
 """Conversation support for Local OpenAI LLM."""
 import logging
+import time
 from typing import TYPE_CHECKING, Literal
 
 from homeassistant.components import conversation
@@ -64,26 +65,47 @@ async def _async_rephrase_response(
     else:
         client = entry.runtime_data
 
+    user_message = (
+        "Rephrase the following response in your assigned voice and personality. "
+        "Keep all facts, device states, and specific information exactly as stated. "
+        "Format for speech: spell out numbers, no markdown or symbols. "
+        "Output only the rephrased text, nothing else.\n\n"
+        f"{original}"
+    )
+
+    prompt_chars = len(personality_prompt)
+    original_chars = len(original)
+    user_msg_chars = len(user_message)
+
     try:
+        t_start = time.monotonic()
         response = await client.chat.completions.create(
             model=rephrase_model,
             messages=[
                 {"role": "system", "content": personality_prompt},
-                {
-                    "role": "user",
-                    "content": (
-                        "Rephrase the following response in your assigned voice and personality. "
-                        "Keep all facts, device states, and specific information exactly as stated. "
-                        "Format for speech: spell out numbers, no markdown or symbols. "
-                        "Output only the rephrased text, nothing else.\n\n"
-                        f"{original}"
-                    ),
-                },
+                {"role": "user", "content": user_message},
             ],
             temperature=0.7,
             stream=False,
         )
+        latency_ms = int((time.monotonic() - t_start) * 1000)
         rephrased = (response.choices[0].message.content or "").strip()
+        rephrased_chars = len(rephrased)
+        if rephrased:
+            hass.states.async_set(
+                f"{DOMAIN}.bench",
+                rephrase_model,
+                {
+                    "original": original,
+                    "rephrased": rephrased,
+                    "personality_prompt_tok": prompt_chars // 4,
+                    "original_tok": original_chars // 4,
+                    "rephrase_input_tok": (prompt_chars + user_msg_chars) // 4,
+                    "rephrased_tok": rephrased_chars // 4,
+                    "rephrase_latency_ms": latency_ms,
+                    "ts": time.time(),
+                },
+            )
         return rephrased if rephrased else None
     except OpenAIError as err:
         _LOGGER.warning("Rephrase call failed (%s) — keeping original response", err)
@@ -246,8 +268,6 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         # upstream extra_system_prompt from the voice pipeline.
         upstream_extra = user_input.extra_system_prompt or ""
         combined_extra = "\n\n".join(p for p in (upstream_extra, generated_extra) if p) or None
-
-        _LOGGER.warning("PROMPT TOKENS ~%d", (len(system_prompt) + len(combined_extra or "")) // 4)
 
         try:
             await chat_log.async_provide_llm_data(
