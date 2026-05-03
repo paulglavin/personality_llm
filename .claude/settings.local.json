@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(git add *)",
-      "Read(//c/Projects/llm_intents/**)"
+      "Read(//c/Projects/llm_intents/**)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Projects\\\\personality_llm\\\\custom_components\\\\personality_llm\\\\\" -Recurse -File | Select-Object FullName | head -30)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Projects\\\\VoicePipeline\" -Recurse -Force)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Read(//c/Projects/VoicePipeline/**)"
     ]
   }
 }
