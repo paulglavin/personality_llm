@@ -11,7 +11,8 @@ A Home Assistant conversation integration that connects to any OpenAI-compatible
 
 - **Personality system** — configure your assistant's name, style, humour level, and response style via dropdowns. The integration generates example-driven prompts tuned for small local models.
 - **Per-user profiles** — each person in your household gets their own personality settings, pronouns, personal context, and optional prompt overrides.
-- **Speaker recognition** — a webhook receives speaker identification from a voice pipeline and routes each conversation to the correct user profile. Multi-turn conversations maintain speaker context automatically. Designed for use with [VoicePipeline](https://github.com/paulglavin/VoicePipeline), but any pipeline that fires the webhook will work.
+- **Speaker recognition** — a webhook receives speaker identification from a voice pipeline and routes each conversation to the correct user profile. Multi-turn conversations maintain speaker context automatically. Designed for use with [VoicePipeline](https://github.com/PaulGlavin/VoicePipeline), but any pipeline that fires the webhook will work.
+- **Home control access** — per-speaker domain allow-lists let you restrict what each person can control by voice (e.g. a child gets lights and media only). A global guest toggle controls whether unidentified speakers can interact with devices at all, and if so, which domains.
 - **Rephrase pipeline** — optionally route the final response through a second, more capable model (e.g. Claude Haiku) to enforce personality consistency when your primary model is small.
 - **Smart Discovery** — a token-efficient entity discovery system that reduces context usage by ~80% compared to a full entity dump.
 - **Music Assistant integration** — a typed tool for Music Assistant voice requests.
@@ -120,6 +121,7 @@ Enable with the **Enable per-user personality** toggle. Each speaker gets an ind
 | Address style | Always by name / Casually / Formally / Custom |
 | Personal context | Background info shown to the model (max 500 chars): role, preferences, interests |
 | Personality prompt | Additional instructions appended after the house personality |
+| Restrict to these domains | Domains this speaker may control via voice. **"All domains" selected (default) = full control.** Deselect "All domains" and pick specific entries to restrict (e.g. Lights + Media Players for a child). |
 
 **Advanced per-user overrides** (enabled separately by admin):
 
@@ -148,9 +150,30 @@ Content-Type: application/json
 - `speaker_id` must match the ID used in the integration config (lowercase alphanumeric + underscores, max 50 chars)
 - Speaker identity is cached for 2 seconds — fire the webhook immediately before the voice command
 - Multi-turn conversation identity is maintained for 30 minutes
-- Shadow HA users are created automatically per speaker for permission scoping
+- A shadow HA user (`voice_speaker_{speaker_id}`) is created automatically per speaker and placed in the admin group so service calls succeed; `perform_action` enforces the per-speaker domain allow-list before any service is called
 
 If no webhook fires and no conversation history is present, the `default` speaker profile is used.
+
+### Home Control Access
+
+Controls what each speaker — including unidentified guests — can do with smart home devices.
+
+**Per-speaker** (configured in each speaker's profile):
+
+| Setting | Effect |
+|---------|--------|
+| "All domains" selected (default) | Full control — no restrictions |
+| Specific domains selected | Only those domains are available via voice |
+
+**Global guest settings** (in the main options flow, **Guest & Access Control** section):
+
+| Setting | Effect |
+|---------|--------|
+| Allow unknown speakers to control the home — off (default) | Unidentified voices cannot control any device |
+| Allow unknown speakers to control the home — on | Unidentified voices can control the domains selected below |
+| Domains unknown speakers can control | Domain allow-list applied when the toggle above is on |
+
+The domain gate runs inside the `perform_action` tool, before any HA service call is made. Blocked requests return a "not available" response to the model rather than an error.
 
 ### Rephrase Pipeline
 

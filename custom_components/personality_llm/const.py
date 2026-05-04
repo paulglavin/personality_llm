@@ -386,6 +386,16 @@ CONF_REPHRASE_MODEL = "rephrase_model"
 CONF_REPHRASE_BASE_URL = "rephrase_base_url"
 CONF_REPHRASE_API_KEY = "rephrase_api_key"
 
+# Per-speaker domain allow-list and global guest access control
+CONF_ALLOWED_DOMAINS = "allowed_domains"
+CONF_GUEST_CONTROL_ENABLED = "guest_control_enabled"
+CONF_GUEST_ALLOWED_DOMAINS = "guest_allowed_domains"
+
+DEFAULT_GUEST_CONTROL_ENABLED = False
+DEFAULT_GUEST_ALLOWED_DOMAINS: list[str] = [
+    "light", "switch", "climate", "media_player", "scene", "fan", "cover",
+]
+
 # Default house prompts (seeded on first install)
 DEFAULT_HOUSE_MODEL_PROMPT = (
     "You are a helpful home assistant. You have access to smart home devices "

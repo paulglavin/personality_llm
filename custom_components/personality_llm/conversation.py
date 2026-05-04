@@ -352,17 +352,20 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         """
         user_name = f"voice_speaker_{speaker_id}"
         
-        # Find existing user
+        # Find existing user — add to admin group if not already there
         for user in await self.hass.auth.async_get_users():
             if user.name == user_name:
+                if not user.is_admin:
+                    await self.hass.auth.async_update_user(user, group_ids=["system-admin"])
+                    _LOGGER.info("Elevated shadow user %s to admin group", user_name)
                 return user.id
-        
-        # Create shadow user
+
+        # Create shadow user in the admin group so HA service auth passes
         user = await self.hass.auth.async_create_user(
             name=user_name,
             system_generated=True,
+            group_ids=["system-admin"],
         )
-        
+
         _LOGGER.info("Created shadow user for speaker %s: %s", speaker_id, user.id)
-        
         return user.id

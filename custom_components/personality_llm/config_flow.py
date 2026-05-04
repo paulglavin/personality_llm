@@ -89,6 +89,11 @@ from .const import (
     CONF_REPHRASE_ENABLED,
     CONF_REPHRASE_MODEL,
     CONF_REPHRASE_SETTINGS,
+    CONF_ALLOWED_DOMAINS,
+    CONF_GUEST_CONTROL_ENABLED,
+    CONF_GUEST_ALLOWED_DOMAINS,
+    DEFAULT_GUEST_CONTROL_ENABLED,
+    DEFAULT_GUEST_ALLOWED_DOMAINS,
     RECOMMENDED_CONVERSATION_OPTIONS,
     RESPONSE_STYLE_OPTIONS,
 )
@@ -125,6 +130,20 @@ _ADDRESS_STYLE_OPTIONS: list[SelectOptionDict] = [
         ADDRESS_STYLE_OPTIONS,
         ["Always by name", "Casually", "Formal", "Custom (advanced)"],
     )
+]
+
+_DOMAIN_OPTIONS: list[SelectOptionDict] = [
+    SelectOptionDict(value="all",           label="All domains (full control)"),
+    SelectOptionDict(value="light",         label="Lights"),
+    SelectOptionDict(value="switch",        label="Switches"),
+    SelectOptionDict(value="climate",       label="Climate / Thermostat"),
+    SelectOptionDict(value="media_player",  label="Media Players"),
+    SelectOptionDict(value="scene",         label="Scenes"),
+    SelectOptionDict(value="fan",           label="Fans"),
+    SelectOptionDict(value="cover",         label="Covers (blinds / garage)"),
+    SelectOptionDict(value="lock",          label="Locks"),
+    SelectOptionDict(value="input_boolean", label="Input Booleans"),
+    SelectOptionDict(value="script",        label="Scripts"),
 ]
 
 # Per-user variants — same options with "Use house default" prepended.
@@ -715,6 +734,13 @@ class PersonalityLLMOptionsFlowHandler(OptionsFlow):
             user_input["house_personality_prompt"] = advanced.get(
                 "house_personality_prompt", DEFAULT_HOUSE_PERSONALITY_PROMPT
             )
+            guest = user_input.pop("guest_access", {}) or {}
+            user_input[CONF_GUEST_CONTROL_ENABLED] = guest.get(
+                CONF_GUEST_CONTROL_ENABLED, DEFAULT_GUEST_CONTROL_ENABLED
+            )
+            user_input[CONF_GUEST_ALLOWED_DOMAINS] = guest.get(
+                CONF_GUEST_ALLOWED_DOMAINS, DEFAULT_GUEST_ALLOWED_DOMAINS
+            )
             self._house_options = user_input
             if user_input.get("enable_per_user_personality"):
                 return await self.async_step_user_select()
@@ -762,6 +788,23 @@ class PersonalityLLMOptionsFlowHandler(OptionsFlow):
                     "allow_full_prompt_override",
                     default=opts.get("allow_full_prompt_override", False),
                 ): bool,
+                vol.Optional("guest_access"): section(
+                    schema=vol.Schema({
+                        vol.Required(
+                            CONF_GUEST_CONTROL_ENABLED,
+                            default=opts.get(CONF_GUEST_CONTROL_ENABLED, DEFAULT_GUEST_CONTROL_ENABLED),
+                        ): bool,
+                        vol.Optional(
+                            CONF_GUEST_ALLOWED_DOMAINS,
+                            default=opts.get(CONF_GUEST_ALLOWED_DOMAINS, DEFAULT_GUEST_ALLOWED_DOMAINS),
+                        ): SelectSelector(SelectSelectorConfig(
+                            options=_DOMAIN_OPTIONS,
+                            multiple=True,
+                            mode=SelectSelectorMode.LIST,
+                        )),
+                    }),
+                    options=SectionConfig(collapsed=True),
+                ),
                 vol.Optional("advanced_prompts"): section(
                     schema=vol.Schema({
                         vol.Required(
@@ -839,6 +882,7 @@ class PersonalityLLMOptionsFlowHandler(OptionsFlow):
                     CONF_RESPONSE_STYLE: user_input.get(CONF_RESPONSE_STYLE, USER_STYLE_INHERIT),
                     CONF_ADDRESS_STYLE: user_input.get(CONF_ADDRESS_STYLE, DEFAULT_ADDRESS_STYLE),
                     CONF_PERSONAL_CONTEXT: personal_context,
+                    CONF_ALLOWED_DOMAINS: user_input.get(CONF_ALLOWED_DOMAINS) or [],
                     "personality_prompt": advanced.get("personality_prompt", ""),
                     "override_house_personality": advanced.get("override_house_personality", False),
                     "personality_override_prompt": advanced.get("personality_override_prompt", ""),
@@ -856,6 +900,7 @@ class PersonalityLLMOptionsFlowHandler(OptionsFlow):
             CONF_RESPONSE_STYLE: existing.get(CONF_RESPONSE_STYLE, USER_STYLE_INHERIT),
             CONF_ADDRESS_STYLE: existing.get(CONF_ADDRESS_STYLE, DEFAULT_ADDRESS_STYLE),
             CONF_PERSONAL_CONTEXT: existing.get(CONF_PERSONAL_CONTEXT, ""),
+            CONF_ALLOWED_DOMAINS: existing.get(CONF_ALLOWED_DOMAINS) or ["all"],
             "personality_prompt": existing.get("personality_prompt", ""),
             "override_house_personality": existing.get("override_house_personality", False),
             "personality_override_prompt": existing.get("personality_override_prompt", ""),
@@ -915,6 +960,13 @@ class PersonalityLLMOptionsFlowHandler(OptionsFlow):
                 vol.Optional(
                     CONF_PERSONAL_CONTEXT, default=defaults[CONF_PERSONAL_CONTEXT]
                 ): TextSelector(TextSelectorConfig(multiline=True)),
+                vol.Optional(
+                    CONF_ALLOWED_DOMAINS, default=defaults[CONF_ALLOWED_DOMAINS]
+                ): SelectSelector(SelectSelectorConfig(
+                    options=_DOMAIN_OPTIONS,
+                    multiple=True,
+                    mode=SelectSelectorMode.LIST,
+                )),
                 vol.Optional("advanced_prompts"): section(
                     schema=vol.Schema(advanced_fields),
                     options=SectionConfig(collapsed=True),

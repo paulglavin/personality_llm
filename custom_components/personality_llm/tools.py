@@ -27,9 +27,57 @@ try:
 except ImportError:  # pragma: no cover
     fr = None
 
-from .const import CONF_MUSIC_SCRIPT, DOMAIN, SMART_DISCOVERY_API_ID
+from .const import (
+    CONF_ALLOWED_DOMAINS,
+    CONF_GUEST_ALLOWED_DOMAINS,
+    CONF_GUEST_CONTROL_ENABLED,
+    CONF_MUSIC_SCRIPT,
+    DEFAULT_GUEST_ALLOWED_DOMAINS,
+    DOMAIN,
+    SMART_DISCOVERY_API_ID,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _speaker_id_from_context(hass: HomeAssistant, llm_context: llm.LLMContext) -> str:
+    """Extract speaker_id from the shadow user in the conversation context."""
+    user_id = getattr(llm_context.context, "user_id", None) if llm_context.context else None
+    if not user_id:
+        return "default"
+    try:
+        for user in hass.auth._store._users.values():
+            if user.id == user_id:
+                name = getattr(user, "name", "") or ""
+                if name.startswith("voice_speaker_"):
+                    return name[len("voice_speaker_"):]
+    except Exception:
+        pass
+    return "default"
+
+
+def _is_domain_allowed(hass: HomeAssistant, speaker_id: str, domain: str) -> bool:
+    """Return True if this speaker may call services in the given domain."""
+    config_manager = hass.data.get(DOMAIN, {}).get("config_manager")
+
+    if speaker_id != "default":
+        if not config_manager:
+            return True
+        user_conf = config_manager.get_user(speaker_id) or {}
+        allowed: list[str] = user_conf.get(CONF_ALLOWED_DOMAINS) or []
+        if not allowed:  # empty or absent — full control
+            return True
+        return "all" in allowed or domain in allowed
+
+    # Unknown / default speaker — check global guest toggle
+    entries = hass.config_entries.async_entries(DOMAIN)
+    entry_options = entries[0].options if entries else {}
+    if not entry_options.get(CONF_GUEST_CONTROL_ENABLED, False):
+        return False
+    allowed = entry_options.get(CONF_GUEST_ALLOWED_DOMAINS, DEFAULT_GUEST_ALLOWED_DOMAINS)
+    if not allowed:
+        return False
+    return "all" in allowed or domain in allowed
 
 
 SMART_API_PROMPT = (
@@ -292,6 +340,11 @@ class PerformActionTool(llm.Tool):
                 "success": False,
                 "error": f"service {domain}.{action} not registered",
             }
+
+        speaker_id = _speaker_id_from_context(hass, llm_context)
+        if not _is_domain_allowed(hass, speaker_id, domain):
+            _LOGGER.info("perform_action blocked: speaker=%s domain=%s", speaker_id, domain)
+            return {"success": False, "error": f"Controlling {domain} devices is not available."}
 
         try:
             await hass.services.async_call(

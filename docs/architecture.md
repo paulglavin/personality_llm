@@ -100,7 +100,49 @@ Voice pipeline fires POST /api/webhook/personality_llm_input
           Store conversation_id → speaker_id in ConversationSpeakerCache
 ```
 
-Shadow HA users (`voice_speaker_{speaker_id}`) are created on demand so HA's permission system correctly scopes tool access per speaker.
+Shadow HA users (`voice_speaker_{speaker_id}`) are created on demand and placed in HA's `system-admin` group. Existing non-admin shadow users are upgraded automatically on their next request. Admin group membership is required for `hass.services.async_call` to succeed; the domain allow-list in `perform_action` is the actual security boundary — HA's own permission check is a fallback.
+
+---
+
+## Home Control Access
+
+### Shadow user admin elevation
+
+`_get_user_id_from_speaker()` in `conversation.py` creates or upgrades shadow users with `group_ids=["system-admin"]`. Without this, HA's service authorization rejects calls made with a non-admin context, regardless of the speaker's intent.
+
+### Domain allow-list gate
+
+`perform_action` in `tools.py` calls `_is_domain_allowed(hass, speaker_id, domain)` before every `hass.services.async_call`. The function never reaches HA's service layer for blocked requests.
+
+```
+perform_action called
+        ↓
+_speaker_id_from_context()   — extracts speaker from shadow user name in llm_context
+        ↓
+_is_domain_allowed()
+    ├─ speaker != "default":
+    │     user_conf.allowed_domains empty or ["all"] → allow
+    │     domain in allowed_domains → allow
+    │     otherwise → block
+    └─ speaker == "default":
+          guest_control_enabled = False → block
+          guest_control_enabled = True, "all" in guest_allowed_domains → allow
+          domain in guest_allowed_domains → allow
+          otherwise → block
+        ↓
+blocked → return {"success": False, "error": "not available"}  (no HA call)
+allowed → hass.services.async_call(context=llm_context.context)
+```
+
+### Configuration storage
+
+| Setting | Location | Default |
+|---------|----------|---------|
+| Per-speaker `allowed_domains` | `UserConfigManager` (per-speaker config) | `["all"]` (full control) |
+| `guest_control_enabled` | entry options | `False` |
+| `guest_allowed_domains` | entry options | `["light","switch","climate","media_player","scene","fan","cover"]` |
+
+`allowed_domains = []` or `["all"]` both mean full control for enrolled speakers. For the default/guest speaker, an empty `guest_allowed_domains` list means no control even when the toggle is on.
 
 ---
 
@@ -222,8 +264,10 @@ Integration setup (async_step_user)
 
 Options flow (PersonalityLLMOptionsFlowHandler)
     Step 1 (async_step_init): House personality + per-user enablement flags
+        ├─ Guest & Access Control section: guest_control_enabled, guest_allowed_domains
         └─ If per-user enabled:
             Step 2 (async_step_user_select): Select or create speaker ID
             Step 3 (async_step_user_personality): Individual speaker settings
+                ├─ allowed_domains (domain allow-list; default ["all"] = full control)
                 └─ Loop back to Step 2 for next speaker
 ```
