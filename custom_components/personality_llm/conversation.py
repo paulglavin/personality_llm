@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT, MATCH_ALL
-from homeassistant.core import HomeAssistant, Context
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.httpx_client import get_async_client
@@ -190,16 +190,6 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         else:
             speaker_id = "default"
             _LOGGER.debug("No conversation_id, using default")
-        
-        # Update context for HA internals (audit logs, permissions)
-        user_id = await self._get_user_id_from_speaker(speaker_id)
-        user_input.context = Context(
-            user_id=user_id,
-            parent_id=user_input.context.parent_id,
-            id=user_input.context.id,
-        )
-        
-        _LOGGER.debug("Updated context.user_id: %s", user_id)
         
         # ========== END Speaker Resolution ==========
         
