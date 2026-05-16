@@ -7,6 +7,7 @@ from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT, MATCH_ALL
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import intent as intent_helper
 from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.httpx_client import get_async_client
@@ -20,6 +21,10 @@ if TYPE_CHECKING:
 from .const import (
     CONF_ASSISTANT_NAME,
     CONF_ENABLE_SMART_DISCOVERY,
+    CONF_HEURISTIC_FILTER_ENABLED,
+    CONF_HEURISTIC_IGNORE_PHRASES,
+    CONF_HEURISTIC_MIN_WORDS,
+    CONF_LLM_GATE_ENABLED,
     CONF_PARALLEL_TOOL_CALLS,
     CONF_REPHRASE_API_KEY,
     CONF_REPHRASE_BASE_URL,
@@ -28,10 +33,16 @@ from .const import (
     CONF_REPHRASE_SETTINGS,
     DEFAULT_ASSISTANT_NAME,
     DEFAULT_ENABLE_SMART_DISCOVERY,
+    DEFAULT_HEURISTIC_FILTER_ENABLED,
+    DEFAULT_HEURISTIC_IGNORE_PHRASES,
+    DEFAULT_HEURISTIC_MIN_WORDS,
+    DEFAULT_LLM_GATE_ENABLED,
     DEFAULT_HOUSE_PERSONALITY_PROMPT,
     DOMAIN,
     HOUSE_BASE_PERSONALITY_TEMPLATE,
+    LLM_GATE_INSTRUCTION,
 )
+from .filter import check_heuristic
 from .entity import LocalAiEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,6 +121,18 @@ async def _async_rephrase_response(
     except OpenAIError as err:
         _LOGGER.warning("Rephrase call failed (%s) — keeping original response", err)
         return None
+
+
+def _make_filtered_result(
+    user_input: conversation.ConversationInput,
+) -> conversation.ConversationResult:
+    """Return a silent ConversationResult for filtered/discarded inputs."""
+    response = intent_helper.IntentResponse(language=user_input.language)
+    response.async_set_speech("")
+    return conversation.ConversationResult(
+        response=response,
+        conversation_id=user_input.conversation_id,
+    )
 
 
 async def async_setup_entry(
@@ -208,6 +231,21 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
 
         # Retrieve global options from config entry
         entry_options = self.entry.options if self.entry else {}
+
+        # ── Heuristic false-activation filter ──────────────────────────────
+        if entry_options.get(CONF_HEURISTIC_FILTER_ENABLED, DEFAULT_HEURISTIC_FILTER_ENABLED):
+            should_filter, reason = check_heuristic(
+                user_input.text,
+                int(entry_options.get(CONF_HEURISTIC_MIN_WORDS, DEFAULT_HEURISTIC_MIN_WORDS)),
+                entry_options.get(CONF_HEURISTIC_IGNORE_PHRASES, DEFAULT_HEURISTIC_IGNORE_PHRASES),
+            )
+            if should_filter:
+                _LOGGER.info(
+                    "Input discarded (heuristic filter) — speaker=%s reason=%s input=%r",
+                    speaker_id, reason, user_input.text,
+                )
+                return _make_filtered_result(user_input)
+        # ───────────────────────────────────────────────────────────────────
         house_personality = entry_options.get("house_personality_prompt", DEFAULT_HOUSE_PERSONALITY_PROMPT)
 
         # Build model prompt from template (or user-supplied override).
@@ -242,6 +280,8 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         system_prompt, generated_extra = resolve_prompts(
             model_prompt, house_personality, user_conf, entry_options
         )
+        if entry_options.get(CONF_LLM_GATE_ENABLED, DEFAULT_LLM_GATE_ENABLED):
+            system_prompt = system_prompt + "\n\n" + LLM_GATE_INSTRUCTION
         _LOGGER.debug("Resolved prompt for %s (first 100 chars): %s...", speaker_id, system_prompt[:100])
         
         parallel_tool_calls = options.get(CONF_PARALLEL_TOOL_CALLS, True)
@@ -273,6 +313,20 @@ class LocalAiConversationEntity(LocalAiEntity, conversation.ConversationEntity):
         await self._async_handle_chat_log(
             chat_log, user_input=user_input, parallel_tool_calls=parallel_tool_calls
         )
+
+        # ── LLM gate intercept ─────────────────────────────────────────────
+        if entry_options.get(CONF_LLM_GATE_ENABLED, DEFAULT_LLM_GATE_ENABLED):
+            last = chat_log.content[-1] if chat_log.content else None
+            if (
+                isinstance(last, conversation.AssistantContent)
+                and (last.content or "").strip() == "[IGNORE]"
+            ):
+                _LOGGER.info(
+                    "Input discarded (LLM gate) — speaker=%s input=%r",
+                    speaker_id, user_input.text,
+                )
+                return _make_filtered_result(user_input)
+        # ───────────────────────────────────────────────────────────────────
 
         # Rephrase final response through personality model (if enabled)
         rephrase_opts = (options.get(CONF_REPHRASE_SETTINGS) or {})

@@ -94,6 +94,14 @@ from .const import (
     CONF_GUEST_ALLOWED_DOMAINS,
     DEFAULT_GUEST_CONTROL_ENABLED,
     DEFAULT_GUEST_ALLOWED_DOMAINS,
+    CONF_HEURISTIC_FILTER_ENABLED,
+    CONF_HEURISTIC_IGNORE_PHRASES,
+    CONF_HEURISTIC_MIN_WORDS,
+    CONF_LLM_GATE_ENABLED,
+    DEFAULT_HEURISTIC_FILTER_ENABLED,
+    DEFAULT_HEURISTIC_IGNORE_PHRASES,
+    DEFAULT_HEURISTIC_MIN_WORDS,
+    DEFAULT_LLM_GATE_ENABLED,
     RECOMMENDED_CONVERSATION_OPTIONS,
     RESPONSE_STYLE_OPTIONS,
 )
@@ -741,6 +749,19 @@ class PersonalityLLMOptionsFlowHandler(OptionsFlow):
             user_input[CONF_GUEST_ALLOWED_DOMAINS] = guest.get(
                 CONF_GUEST_ALLOWED_DOMAINS, DEFAULT_GUEST_ALLOWED_DOMAINS
             )
+            false_act = user_input.pop("false_activation_filter", {}) or {}
+            user_input[CONF_HEURISTIC_FILTER_ENABLED] = false_act.get(
+                CONF_HEURISTIC_FILTER_ENABLED, DEFAULT_HEURISTIC_FILTER_ENABLED
+            )
+            user_input[CONF_HEURISTIC_IGNORE_PHRASES] = false_act.get(
+                CONF_HEURISTIC_IGNORE_PHRASES, DEFAULT_HEURISTIC_IGNORE_PHRASES
+            )
+            user_input[CONF_HEURISTIC_MIN_WORDS] = false_act.get(
+                CONF_HEURISTIC_MIN_WORDS, DEFAULT_HEURISTIC_MIN_WORDS
+            )
+            user_input[CONF_LLM_GATE_ENABLED] = false_act.get(
+                CONF_LLM_GATE_ENABLED, DEFAULT_LLM_GATE_ENABLED
+            )
             self._house_options = user_input
             if user_input.get("enable_per_user_personality"):
                 return await self.async_step_user_select()
@@ -802,6 +823,29 @@ class PersonalityLLMOptionsFlowHandler(OptionsFlow):
                             multiple=True,
                             mode=SelectSelectorMode.LIST,
                         )),
+                    }),
+                    options=SectionConfig(collapsed=True),
+                ),
+                vol.Optional("false_activation_filter"): section(
+                    schema=vol.Schema({
+                        vol.Required(
+                            CONF_HEURISTIC_FILTER_ENABLED,
+                            default=opts.get(CONF_HEURISTIC_FILTER_ENABLED, DEFAULT_HEURISTIC_FILTER_ENABLED),
+                        ): bool,
+                        vol.Optional(
+                            CONF_HEURISTIC_IGNORE_PHRASES,
+                            default=opts.get(CONF_HEURISTIC_IGNORE_PHRASES, DEFAULT_HEURISTIC_IGNORE_PHRASES),
+                        ): TextSelector(TextSelectorConfig(multiline=True)),
+                        vol.Optional(
+                            CONF_HEURISTIC_MIN_WORDS,
+                            default=opts.get(CONF_HEURISTIC_MIN_WORDS, DEFAULT_HEURISTIC_MIN_WORDS),
+                        ): NumberSelector(NumberSelectorConfig(
+                            min=0, max=20, mode=NumberSelectorMode.BOX,
+                        )),
+                        vol.Required(
+                            CONF_LLM_GATE_ENABLED,
+                            default=opts.get(CONF_LLM_GATE_ENABLED, DEFAULT_LLM_GATE_ENABLED),
+                        ): bool,
                     }),
                     options=SectionConfig(collapsed=True),
                 ),

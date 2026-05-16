@@ -396,6 +396,28 @@ DEFAULT_GUEST_ALLOWED_DOMAINS: list[str] = [
     "light", "switch", "climate", "media_player", "scene", "fan", "cover",
 ]
 
+# False activation / junk input filtering
+CONF_HEURISTIC_FILTER_ENABLED = "heuristic_filter_enabled"
+CONF_HEURISTIC_IGNORE_PHRASES = "heuristic_ignore_phrases"
+CONF_HEURISTIC_MIN_WORDS = "heuristic_min_words"
+CONF_LLM_GATE_ENABLED = "llm_gate_enabled"
+
+DEFAULT_HEURISTIC_FILTER_ENABLED = False
+DEFAULT_HEURISTIC_IGNORE_PHRASES = (
+    "and you are not going to\n"
+    "he said\n"
+    "she said\n"
+    "they said"
+)
+DEFAULT_HEURISTIC_MIN_WORDS = 2
+DEFAULT_LLM_GATE_ENABLED = False
+
+LLM_GATE_INSTRUCTION = (
+    "If the input is clearly background conversation not directed at you "
+    "(e.g. a fragment of someone else talking, random speech with no home "
+    "automation intent), respond with exactly: [IGNORE] — no other text."
+)
+
 # Default house prompts (seeded on first install)
 DEFAULT_HOUSE_MODEL_PROMPT = (
     "You are a helpful home assistant. You have access to smart home devices "

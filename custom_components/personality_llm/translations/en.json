@@ -290,6 +290,22 @@
               "guest_allowed_domains": "Devices an unidentified speaker can control. Has no effect if the toggle above is off."
             }
           },
+          "false_activation_filter": {
+            "name": "False Activation Filter",
+            "description": "Discard inputs that look like background speech rather than commands.",
+            "data": {
+              "heuristic_filter_enabled": "Enable phrase-based filter",
+              "heuristic_ignore_phrases": "Phrases to ignore (one per line)",
+              "heuristic_min_words": "Minimum word count",
+              "llm_gate_enabled": "Enable LLM gate"
+            },
+            "data_description": {
+              "heuristic_filter_enabled": "Before calling the LLM, discard any input that matches a phrase below or is shorter than the minimum word count.",
+              "heuristic_ignore_phrases": "Inputs containing any of these phrases (case-insensitive) are silently discarded. One phrase per line.",
+              "heuristic_min_words": "Inputs with fewer words than this are silently discarded. Set to 0 to disable.",
+              "llm_gate_enabled": "Ask the LLM to respond with [IGNORE] when the input is clearly not a home automation command. Costs one inference call but catches subtler false activations."
+            }
+          },
           "advanced_prompts": {
             "name": "Advanced (raw prompts)",
             "description": "Override the generated personality with custom prompt text. Changes here take priority over the structured settings above. Use these if you need precise control or are migrating an existing configuration.",
