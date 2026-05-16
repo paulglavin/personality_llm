@@ -26,17 +26,17 @@ Everything from the upstream fork is preserved: streaming, TTS, `<think>` tag st
 
 ### Via HACS (recommended)
 
-[![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Paul-Glavin&repository=personality_llm&category=integration)
+[![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=PaulGlavin&repository=personality_llm&category=integration)
 
 > [!NOTE]
-> If the button above doesn't work, add `https://github.com/Paul-Glavin/personality_llm` as a custom repository of type **Integration** in HACS.
+> If the button above doesn't work, add `https://github.com/PaulGlavin/personality_llm` as a custom repository of type **Integration** in HACS.
 
 1. Install `Personality LLM` from HACS.
 2. Restart Home Assistant.
 
 <details><summary>Manual install</summary>
 
-Copy the `personality_llm` folder from the [latest release](https://github.com/Paul-Glavin/personality_llm/releases/latest) to your [`custom_components` directory](https://developers.home-assistant.io/docs/creating_integration_file_structure/#where-home-assistant-looks-for-integrations), then restart Home Assistant.
+Copy the `personality_llm` folder from the [latest release](https://github.com/paulglavin/personality_llm/releases/latest) to your [`custom_components` directory](https://developers.home-assistant.io/docs/creating_integration_file_structure/#where-home-assistant-looks-for-integrations), then restart Home Assistant.
 
 </details>
 
